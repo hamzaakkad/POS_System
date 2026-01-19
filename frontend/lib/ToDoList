@@ -1,0 +1,37 @@
+1. diagnoste the stock issue when i try to post a new product and fix it (DONE and it was easy )
+2. make a better ui for the Dialog(DONE)
+3. add the ability to delete products DELETE FROM product WHERE id = 2 // for example (DONE)
+4. i have to edit the ui now so it updates the ui whenever i click the checkout button immedently and removes one the quantity from the item in the ui
+
+5. add descriptive error when  i try to delete some element that is now deletable
+
+6. i might add soft delete to my database and backend to be able to use is_active or nt to the listing but that would require me to change nearly eveerything depending on the listing availability imma see later
+
+
+7. products edits
+
+
+
+BOSS LEVEL :
+not really
+make a page that has list and in that list list all the ordered_item data 
+BUT format that data like for example 
+product id 1 is a Derby 
+dont type product_id 1 
+get its name Derby and type the id aswell i want everything should be clear
+
+Done 
+
+disable the select product gesture if the stock == 0 
+
+make the ADD PRODUCT dialog work with provider and add the ability 
+to resize or delete the image and choose another one and when the product is
+ posted the dialog clears the info and resets using the same provider .watch()
+
+ ALTER TABLE product ADD INDEX idx_pagination (is_archived, id DESC);
+for making the index faster in the dB
+
+
+now imma test -->   and    <-- in the paginatedProducts route like in the pos system imma go and 
+assign a button to do that same function but insted of getting the first page aka cursor = null 
+imma make it get the the next cursor after the cursor == null and go for it after that imma make the sae thing but going back to the previous page
