@@ -50,9 +50,12 @@ def get_all_products():
     finally:
         db.close_connection(connection, cursor)
 
+
+    
 #Still testing the route it works now wih postman and imma test it with the frontend 
 @api.route('/products/paged', methods=['GET'])
 def get_paged_products():
+    # 1. Get Parameters
     limit = int(request.args.get('limit', 60))
     cursor_param = request.args.get('cursor')
     
@@ -65,14 +68,13 @@ def get_paged_products():
     outOfStock = request.args.get("outofstock")
     inStock = request.args.get("instock")
 
-
     connection = db.get_connection()
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
     
     cursor = connection.cursor(dictionary=True)
     try:
-        # 1. Base Filters
+        # 2. Base Filters (Applied to both Data and Total Count)
         where_clauses = ["is_archived = 0"]
         params = []
 
@@ -84,70 +86,67 @@ def get_paged_products():
             where_clauses.append("category_id = %s")
             params.append(category_id)
 
-        if min_price:
+        # imma try this fix suggested by gemini: Ensure they are numbers and not empty strings for tyhe sql errors
+        if min_price and min_price.strip():
             where_clauses.append("price >= %s")
-            params.append(min_price)
+            params.append(float(min_price))
             
-        if max_price:
+        if max_price and max_price.strip():
             where_clauses.append("price <= %s") 
-            params.append(max_price)
+            params.append(float(max_price))
 
         if outOfStock:
-            where_clauses.append("storage_quantity = %s")
-            params.append(outOfStock)
+            where_clauses.append("storage_quantity <= 0")
+        elif inStock:
+            where_clauses.append("storage_quantity > 0")
 
-        if inStock:
-            where_clauses.append("storage_quantity > %s")
-            params.append(inStock)
+        # Capture the state of filters BEFORE adding cursor logic for the count
+        count_where_str = " WHERE " + " AND ".join(where_clauses)
+        count_params = list(params)
 
+        # 3. Pagination & Sorting Logic
         if sort_AtoZ:
             order_by = "name ASC, id ASC"
-            if cursor_param:
+            if cursor_param and '|' in cursor_param:
                 try:
                     last_name, last_id = cursor_param.split('|')
                     where_clauses.append("(name > %s OR (name = %s AND id > %s))")
                     params.extend([last_name, last_name, last_id])
-                except ValueError:
-                    where_clauses.append("id > %s")#so it dosent break silently without returning anything atlease make it return the normal cursor 
-                    #that ^ turnedout to be a bad idea
-                    params.append(cursor_param)
-
+                except ValueError: pass
         elif sort_ZtoA:
-            order_by = "name DESC, id ASC" # name down, id up
-            if cursor_param:
+            order_by = "name DESC, id ASC"
+            if cursor_param and '|' in cursor_param:
                 try:
-                    # This now expects format correctly 3abaley PIPEEE
                     last_name, last_id = cursor_param.split('|')
-                    #  Name is less than last OR (Name is same AND ID is greater)
                     where_clauses.append("(name < %s OR (name = %s AND id > %s))")
                     params.extend([last_name, last_name, last_id])
-                except ValueError:
-                    where_clauses.append("id > %s")
-                    params.append(cursor_param)
+                except ValueError: pass
         else:
             order_by = "id ASC"
             if cursor_param:
                 where_clauses.append("id > %s")
                 params.append(cursor_param)
 
-        #  Main Query
+        # 4. Fetch Products
         where_str = " WHERE " + " AND ".join(where_clauses)
         query = f"SELECT * FROM product {where_str} ORDER BY {order_by} LIMIT %s"
         cursor.execute(query, params + [limit])
         products = cursor.fetchall()
         
-        # Create the SMART next_cursor
+        # 5. Generate Next Cursor
         next_cursor = None
-        if products:
+        if len(products) == limit:
             last_item = products[-1]
-            #  Included sort_ZtoA here so the format is preserved this bug wasnt that hard
             if sort_AtoZ or sort_ZtoA:
                 next_cursor = f"{last_item['name']}|{last_item['id']}"
             else:
                 next_cursor = last_item['id']
 
-        # Remaining Count (simplified) even more totry fixing the bug in the product service the remaining =1 and ghosting 
-        # it didnt :( i fixed it the old way remaining_count == 1 || == 0 func
+        # 6. Calculate Remaining Count correctly
+        # We count total matching items and subtract what we've already seen
+        cursor.execute(f"SELECT COUNT(*) as total FROM product {count_where_str}", count_params)
+        total_matched = cursor.fetchone()['total']
+        
         remaining_count = 0
         if next_cursor:
             # To keep it simple, imma use the same where_str that i just built
@@ -160,10 +159,12 @@ def get_paged_products():
             'products': products,
             'count': len(products),
             'remaining_count': max(0, remaining_count),
-            'next_cursor': next_cursor
+            'next_cursor': next_cursor,
+            'total_matches': total_matched
         })
 
     except Exception as e:
+        print(f"Error: {str(e)}") # for debugging
         return jsonify({'error': str(e)}), 500
     finally: 
         db.close_connection(connection, cursor)

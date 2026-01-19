@@ -41,3 +41,20 @@ class PostCategoryService {
     }
   }
 }
+
+class DeleteCategoryService {
+  final String baseUrl = 'http://127.0.0.1:5000/api';
+  Future<void> deleteCategory(int? category_id) async {
+    final response = await http.delete(
+      Uri.parse(
+        "$baseUrl/categories/delete/$category_id",
+      ), //there were 2 small errors here that i repeat everythime and they drove me crazy
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      debugPrint("Category Deleted Succesfully");
+    } else {
+      debugPrint("Error ${response.statusCode} while deleting the category");
+    }
+  }
+}

@@ -49,7 +49,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: AppColors.darkBgPrimary,
       ),
 
-      home: const ProductsPage(), //PosDashboardPage(),
+      home: const PosDashboardPage(),
     );
   }
 }

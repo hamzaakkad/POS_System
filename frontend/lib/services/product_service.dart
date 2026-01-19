@@ -13,9 +13,8 @@ class productService {
   String? searchQuery;
 
   //dynamic response;
-
+  int? remainingCount;
   String? _currentCursor = null;
-  int? remaining_count;
 
   Future<List<productModel>> fetchProducts({
     bool loadMore = false,
@@ -27,6 +26,7 @@ class productService {
     bool? inStock = false,
     bool? outOfStock = false,
     int? category,
+    // int? remaining_count,
   }) async {
     if (!loadMore) {
       _currentCursor = null; // Reset for first page
@@ -60,7 +60,7 @@ class productService {
       debugPrint(response.body);
 
       // to fix the ghosting products so they dont keep on appearing again and again
-      if (remaining_count == 1 || remaining_count == 0) {
+      if (remainingCount == 1 || remainingCount == 0) {
         // i put 1 because of an annoying ghosting bug new bug remove it and see if u want after the last page
         //_currentCursor = null;
         currentCursor = null;
@@ -68,13 +68,12 @@ class productService {
       } else {
         currentCursor = '0';
       } // it worksssssssssssssssssssssss :)))))))))))))))))))))
-      // Cold and peace Aleppo :(
 
       final List data = json['products'];
       _currentCursor = json['next_cursor']?.toString();
-      remaining_count = json['remaining_count'];
+      remainingCount = json['remaining_count'];
       debugPrint(
-        'Fetched ${data.length} products, next cursor: $_currentCursor, remaining count is: $remaining_count, and user searched for : $searchQuery, and minimum asked price is : $minPrice, and maximim asked price is : $maxPrice, and category id is: $category_id',
+        'Fetched ${data.length} products, next cursor: $_currentCursor, remaining count is: $remainingCount, and user searched for : $searchQuery, and minimum asked price is : $minPrice, and maximim asked price is : $maxPrice, and category id is: $category_id',
       );
 
       return data.map((e) => productModel.fromJson(e)).toList();

@@ -18,6 +18,8 @@ import '../reusable widgets/UiWidgets.dart';
 import '../providers/theme_provider.dart';
 import '../reusable widgets/AppColors.dart';
 import '../services/categories_service.dart';
+import '../pages/products_page.dart';
+import 'categories_page.dart';
 
 class PosDashboardPage extends StatefulWidget {
   const PosDashboardPage({super.key});
@@ -32,6 +34,8 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
   final ArchiveProductService _archiveProductService = ArchiveProductService();
   final FetchCategoriesService _categoriesService = FetchCategoriesService();
   final productService _service = productService();
+  final FiltersSheet _filtersSheet = FiltersSheet();
+
   final searchQueryController = TextEditingController();
 
   // Text controllers for posting products
@@ -341,35 +345,21 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     isExpanded: _sidebarExpanded,
                   ),
 
-                  // Refresh Button
+                  //Categories Page
                   buildSidebarMenuItem(
-                    icon: Icons.refresh,
-                    label: 'Refresh',
+                    icon: Icons.category,
+                    label: 'Categories',
                     isDark: isDark,
                     onTap: () {
-                      productsProv.refresh();
-                      context.read<CategoriesProvider>().loadCategories();
-                    },
-                    isExpanded: _sidebarExpanded,
-                  ),
-
-                  // Add Category Button
-                  buildSidebarMenuItem(
-                    icon: Icons.add,
-                    label: 'Add Category',
-                    isDark: isDark,
-                    onTap: () async {
-                      final success = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => const AddCategoryDialog(),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CategoriesPage(),
+                        ),
                       );
-                      if (success == true) {
-                        context.read<CategoriesProvider>().loadCategories();
-                      }
                     },
                     isExpanded: _sidebarExpanded,
                   ),
-
                   // Orders Button
                   buildSidebarMenuItem(
                     icon: Icons.receipt_long,
@@ -385,31 +375,46 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     },
                     isExpanded: _sidebarExpanded,
                   ),
-
-                  // Filter Button
+                  //Products button
                   buildSidebarMenuItem(
-                    icon: Icons.filter_list,
-                    label: 'Filters',
+                    icon: Icons.shopping_cart_sharp,
+                    label: 'Products',
                     isDark: isDark,
                     onTap: () {
-                      openFilterSheet(context);
-                    },
-                    isExpanded: _sidebarExpanded,
-                  ),
-
-                  // Add Product Button
-                  buildSidebarMenuItem(
-                    icon: Icons.add,
-                    label: 'Add Product',
-                    isDark: isDark,
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => const Productdialogwidget(),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProductsPage(),
+                        ),
                       );
                     },
                     isExpanded: _sidebarExpanded,
                   ),
+
+                  // Filter Button
+                  // buildSidebarMenuItem(
+                  //   icon: Icons.filter_list,
+                  //   label: 'Filters',
+                  //   isDark: isDark,
+                  //   onTap: () {
+                  //     FiltersSheet.openFilterSheet(context);
+                  //   },
+                  //   isExpanded: _sidebarExpanded,
+                  // ),
+
+                  // // Add Product Button
+                  // buildSidebarMenuItem(
+                  //   icon: Icons.add,
+                  //   label: 'Add Product',
+                  //   isDark: isDark,
+                  //   onTap: () {
+                  //     showDialog(
+                  //       context: context,
+                  //       builder: (context) => const Productdialogwidget(),
+                  //     );
+                  //   },
+                  //   isExpanded: _sidebarExpanded,
+                  // ),
 
                   // Separator
                   if (_sidebarExpanded)
@@ -676,6 +681,18 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                 ),
                               ),
                             ),
+                            SizedBox(width: 16),
+                            buildHeaderIconButton(
+                              icon: Icons.filter_list,
+                              tooltip: "filter",
+                              onPressed: () {
+                                FiltersSheet.openFilterSheet(context);
+                              },
+                              color: isDark
+                                  ? AppColors.darkButtonsPrimary
+                                  : AppColors.accentBlue,
+                              backgroundColor: Colors.transparent,
+                            ),
                           ],
                         ),
                       ),
@@ -774,11 +791,11 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                               category['name'] as String;
 
                                           final isSelected =
-                                              (isAll &&
-                                                  selectedCategoryIndex == 0) ||
+                                              // (isAll &&
+                                              //     selectedCategoryIndex == 0) ||
                                               (!isAll &&
-                                                  productsProv.category_id ==
-                                                      categoryId);
+                                              productsProv.category_id ==
+                                                  categoryId);
 
                                           return Padding(
                                             padding: const EdgeInsets.symmetric(
@@ -981,8 +998,8 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: isDark
-                                              ? AppColors.darkBgSurface
-                                              : AppColors.lightBgSurface,
+                                              ? AppColors.borderSubtleOutlined
+                                              : AppColors.lightSubtleOutlined,
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
@@ -1383,7 +1400,7 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                     decoration: BoxDecoration(
                                       color: isDark
                                           ? AppColors.darkBgElevated
-                                          : Colors.white,
+                                          : AppColors.lightSubtleOutlined,
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
                                         color: Colors.grey.shade500,

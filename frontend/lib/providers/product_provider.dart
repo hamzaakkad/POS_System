@@ -157,16 +157,16 @@ class ProductsProvider extends ChangeNotifier {
     refresh();
   }
 
-  // Category mapping there is one like it in the pos_dashboard.dart actually there are 2
-  final Map<String, int?> categoryMapping = {
-    'All': null,
-    'Electronics': 1,
-    'LifeStyle': 2,
-    'Art': 3,
-    'Food': 4,
-    'Snacks': 5,
-    'Drinks': 6,
-  };
+  // // Category mapping there is one like it in the pos_dashboard.dart actually there are 2
+  // final Map<String, int?> categoryMapping = {
+  //   'All': null,
+  //   'Electronics': 1,
+  //   'LifeStyle': 2,
+  //   'Art': 3,
+  //   'Food': 4,
+  //   'Snacks': 5,
+  //   'Drinks': 6,
+  // };
 
   //======= reset pagination method ========= im currently using it with the server side search and filters see pos_dashbord perform search method
   resetPagination() {
@@ -181,11 +181,9 @@ class ProductsProvider extends ChangeNotifier {
     _loadingMore = true;
     _error = null;
     notifyListeners();
-
     try {
       final newProducts = await _service.fetchProducts(
         category: category_id,
-
         sort_ZtoA: sortZtoA,
         sort_AtoZ: sortAtoZ,
         loadMore: true,
@@ -202,9 +200,11 @@ class ProductsProvider extends ChangeNotifier {
       // Re-apply filters to include new products please for the third time engineer dont ask me to make the filters server based
 
       _applySearchAndFilters();
-
+      if (_service.remainingCount == 0) {
+        _hasMore = false;
+      }
       debugPrint(
-        'Loaded ${newProducts.length} more products. Total: ${_allProducts.length}, Has more: $_hasMore',
+        'Loaded ${newProducts.length} more products. Total: ${_allProducts.length}, Has more: $_hasMore, remaining Count is : ${_service.remainingCount}',
       );
     } catch (e) {
       _error = e.toString();

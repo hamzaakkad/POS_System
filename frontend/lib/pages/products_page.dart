@@ -1,10 +1,10 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:pos_system/providers/product_provider.dart';
-import 'package:pos_system/providers/theme_provider.dart';
+import 'package:pos_system/reusable%20widgets/Productdialogwidget.dart';
 import 'package:provider/provider.dart';
-import '../services/orders_service.dart';
-import '../models/orders_model.dart';
+import '../models/product_model.dart';
+import '../providers/product_provider.dart';
+import '../providers/theme_provider.dart';
 import '../reusable widgets/AppColors.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -15,7 +15,10 @@ class ProductsPage extends StatefulWidget {
 }
 
 class ProductsPageState extends State<ProductsPage> {
-  final Set<int> _expandedOrders = {};
+  final Set<int> _expandedProducts = {};
+  final ScrollController _scrollController = ScrollController();
+  final searchQueryController = TextEditingController();
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -25,13 +28,39 @@ class ProductsPageState extends State<ProductsPage> {
     });
   }
 
-  Future<void> _refresh() async {
-    await context.read<ProductsProvider>().fetchProducts();
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    searchQueryController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _performSearch() async {
+    final query = searchQueryController.text.trim();
+    final provider = context.read<ProductsProvider>();
+    try {
+      provider.resetPagination();
+      await provider.fetchProducts(
+        searchQuery: query.isNotEmpty ? query : null,
+      );
+      if (mounted) FocusScope.of(context).unfocus();
+    } catch (e) {
+      debugPrint('Search error: $e');
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 750), () {
+      if (mounted) _performSearch();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<ThemeProvider>().isDark;
+    final provider = context.watch<ProductsProvider>();
 
     return Scaffold(
       body: Container(
@@ -41,8 +70,6 @@ class ProductsPageState extends State<ProductsPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
-            final screenHeight = constraints
-                .maxHeight; //imma keep it for later flexibal resizing options
 
             return SafeArea(
               child: Padding(
@@ -50,80 +77,10 @@ class ProductsPageState extends State<ProductsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// TOP HEADER
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: IconButton(
-                            icon: Icon(
-                              Icons.arrow_back,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextPrimary,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ),
-                        Text(
-                          'PRODUCTS',
-                          style: TextStyle(
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : AppColors.lightTextPrimary,
-                            fontSize: screenWidth > 800 ? 28 : 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            // Theme toggle button to match dashboard
-                            IconButton(
-                              icon: Icon(
-                                isDark ? Icons.light_mode : Icons.dark_mode,
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : AppColors.lightTextPrimary,
-                              ),
-                              onPressed: () =>
-                                  context.read<ThemeProvider>().toggleTheme(),
-                            ),
-                            SizedBox(width: screenWidth > 800 ? 12 : 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.darkBgElevated
-                                    : AppColors.lightBgSurface,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isDark
-                                      ? AppColors.borderSubtle
-                                      : Colors.grey.shade300,
-                                ),
-                              ),
-                              child: IconButton(
-                                icon: Icon(
-                                  Icons.refresh,
-                                  color: isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.lightTextPrimary,
-                                ),
-                                onPressed: _refresh,
-                                tooltip: 'Refresh',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-
+                    _buildHeader(screenWidth, isDark, provider),
                     const SizedBox(height: 24),
 
-                    /// ORDERS TABLE
+                    /// PRODUCT MANAGEMENT BOX (Matching Categories Design)
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -148,6 +105,7 @@ class ProductsPageState extends State<ProductsPage> {
                         ),
                         child: Column(
                           children: [
+                            _buildSearchSection(isDark, screenWidth),
                             _tableHeader(screenWidth, isDark),
                             Container(
                               height: 1,
@@ -156,127 +114,13 @@ class ProductsPageState extends State<ProductsPage> {
                                   : Colors.grey.shade300,
                             ),
                             Expanded(
-                              child: Consumer<ProductsProvider>(
-                                builder: (context, productsProvider, _) {
-                                  if (productsProvider.loading) {
-                                    return Center(
-                                      child: CircularProgressIndicator(
-                                        color: isDark
-                                            ? AppColors.darkButtonsPrimary
-                                            : AppColors.accentBlue,
-                                      ),
-                                    );
-                                  }
-                                  if (productsProvider.error != null) {
-                                    return Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.error_outline,
-                                              color: Colors.red,
-                                              size: 48,
-                                            ),
-                                            const SizedBox(height: 16),
-                                            Text(
-                                              'Error: ${productsProvider.error}',
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? AppColors
-                                                          .darkTextSecondary
-                                                    : Colors.red,
-                                                fontSize: 16,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                            const SizedBox(height: 20),
-                                            ElevatedButton(
-                                              onPressed: _refresh,
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: isDark
-                                                    ? AppColors
-                                                          .darkButtonsPrimary
-                                                    : AppColors.accentBlue,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 24,
-                                                      vertical: 12,
-                                                    ),
-                                              ),
-                                              child: Text(
-                                                'Retry',
-                                                style: TextStyle(
-                                                  color: isDark
-                                                      ? AppColors
-                                                            .darkTextPrimary
-                                                      : Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                  final orders = productsProvider.products;
-                                  if (orders.isEmpty) {
-                                    return Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.receipt_long_outlined,
-                                            color: isDark
-                                                ? AppColors.darkTextMuted
-                                                : Colors.grey.shade300,
-                                            size: 60,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            'No orders yet',
-                                            style: TextStyle(
-                                              color: isDark
-                                                  ? AppColors.darkTextMuted
-                                                  : Colors.grey,
-                                              fontSize: 18,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }
-                                  return ListView.builder(
-                                    itemCount: orders.length,
-                                    itemBuilder: (context, index) {
-                                      final o = orders[index];
-                                      final expanded = _expandedOrders.contains(
-                                        o.id,
-                                      );
-                                      return Column(
-                                        children: [
-                                          // _orderRow(
-                                          //   o,
-                                          //   expanded,
-                                          //   screenWidth,
-                                          //   context,
-                                          // ),
-                                          // if (expanded)
-                                          //   _orderDetails(
-                                          //     o,
-                                          //     screenWidth,
-                                          //     isDark,
-                                          //   ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
+                              child: _buildListContent(
+                                provider,
+                                isDark,
+                                screenWidth,
                               ),
                             ),
+                            _buildPaginationFooter(provider, isDark),
                           ],
                         ),
                       ),
@@ -291,429 +135,318 @@ class ProductsPageState extends State<ProductsPage> {
     );
   }
 
-  Widget _tableHeader(double screenWidth, bool isDark) {
+  Widget _buildHeader(
+    double screenWidth,
+    bool isDark,
+    ProductsProvider provider,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          icon: Icon(
+            Icons.arrow_back,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.lightTextPrimary,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        Text(
+          'PRODUCTS',
+          style: TextStyle(
+            color: isDark
+                ? AppColors.darkTextPrimary
+                : AppColors.lightTextPrimary,
+            fontSize: screenWidth > 800 ? 28 : 22,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+        IconButton(
+          icon: Icon(
+            Icons.refresh,
+            color: isDark
+                ? AppColors.darkTextSecondary
+                : AppColors.lightTextPrimary,
+          ),
+          onPressed: () => provider.refresh(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchSection(bool isDark, double screenWidth) {
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: screenWidth > 800 ? 24 : 16,
-        vertical: 20,
-      ),
+      padding: const EdgeInsets.all(20.0),
       child: Row(
         children: [
           Expanded(
-            child: Row(
-              children: [
-                _HeaderText(
-                  'ORDER NUMBER',
-                  flex: 3,
-                  screenWidth: screenWidth,
-                  isDark: isDark,
+            child: TextField(
+              controller: searchQueryController,
+              onChanged: _onSearchChanged,
+              onSubmitted: (_) => _performSearch(),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black),
+              decoration: InputDecoration(
+                hintText: "Search products...",
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white54 : Colors.black54,
                 ),
-                if (screenWidth > 600)
-                  _HeaderText(
-                    'ID',
-                    flex: 1,
-                    screenWidth: screenWidth,
-                    isDark: isDark,
-                  ),
-                _HeaderText(
-                  'TOTAL',
-                  flex: 2,
-                  screenWidth: screenWidth,
-                  isDark: isDark,
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: isDark ? Colors.white54 : Colors.black54,
                 ),
-                if (screenWidth > 800)
-                  _HeaderText(
-                    'CREATED AT',
-                    flex: 4,
-                    screenWidth: screenWidth,
-                    isDark: isDark,
-                  ),
-                if (screenWidth <= 800 && screenWidth > 600)
-                  _HeaderText(
-                    'DATE',
-                    flex: 3,
-                    screenWidth: screenWidth,
-                    isDark: isDark,
-                  ),
-              ],
+                filled: true,
+                fillColor: isDark
+                    ? AppColors.darkBgPrimary
+                    : Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                suffixIcon: searchQueryController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          searchQueryController.clear();
+                          _performSearch();
+                        },
+                      )
+                    : null,
+              ),
             ),
           ),
-          SizedBox(width: screenWidth > 800 ? 120 : 100),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () async {
+              showDialog(
+                context: context,
+                builder: (context) => const Productdialogwidget(),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark
+                  ? AppColors.darkButtonsPrimary
+                  : AppColors.accentBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text(
+              "ADD",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _orderRow(
-    Order order,
+  Widget _tableHeader(double screenWidth, bool isDark) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth > 800 ? 24 : 16,
+        vertical: 15,
+      ),
+      child: Row(
+        children: [
+          _HeaderText(
+            'NAME',
+            flex: 3,
+            screenWidth: screenWidth,
+            isDark: isDark,
+          ),
+          if (screenWidth > 600)
+            _HeaderText(
+              'ID',
+              flex: 2,
+              screenWidth: screenWidth,
+              isDark: isDark,
+            ),
+          _HeaderText(
+            'PRICE',
+            flex: 2,
+            screenWidth: screenWidth,
+            isDark: isDark,
+          ),
+          const SizedBox(width: 96), // Space for icons
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListContent(
+    ProductsProvider provider,
+    bool isDark,
+    double screenWidth,
+  ) {
+    if (provider.loading && provider.products.isEmpty) {
+      return Center(
+        child: CircularProgressIndicator(color: AppColors.accentBlue),
+      );
+    }
+    if (provider.products.isEmpty) {
+      return Center(
+        child: Text(
+          "No products found.",
+          style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      itemCount: provider.products.length,
+      itemBuilder: (context, index) {
+        final product = provider.products[index];
+        final expanded = _expandedProducts.contains(product.id);
+
+        return Column(
+          children: [
+            _productRow(product, expanded, screenWidth, isDark),
+            if (expanded) _productDetails(product, isDark),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _productRow(
+    productModel product,
     bool expanded,
     double screenWidth,
-    BuildContext context,
+    bool isDark,
   ) {
-    final isDark = context.watch<ThemeProvider>().isDark;
-
-    final created = order.createdAt;
-    final createdText = created != null
-        ? screenWidth > 800
-              ? '${created.day}/${created.month}/${created.year} ${created.hour}:${created.minute.toString().padLeft(2, '0')}'
-              : '${created.day}/${created.month}/${created.year}'
-        : '-';
-
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: screenWidth > 800 ? 24 : 16,
-        vertical: 20,
+        vertical: 12,
       ),
       decoration: BoxDecoration(
+        color: expanded
+            ? (isDark ? Colors.white10 : Colors.blue.withOpacity(0.05))
+            : null,
         border: Border(
           bottom: BorderSide(
             color: isDark ? AppColors.borderSubtle : Colors.grey.shade200,
           ),
         ),
-        color: expanded
-            ? (isDark
-                  ? AppColors.darkButtonsPrimary.withOpacity(0.1)
-                  : AppColors.accentBlue.withOpacity(0.08))
-            : isDark
-            ? AppColors.darkBgElevated
-            : AppColors.lightBgElevated,
       ),
       child: Row(
         children: [
           Expanded(
-            child: Row(
-              children: [
-                _RowText(
-                  'Order #${order.id}',
-                  flex: 3,
-                  screenWidth: screenWidth,
-                  isDark: isDark,
-                ),
-                if (screenWidth > 600)
-                  _RowText(
-                    '${order.id}',
-                    flex: 1,
-                    screenWidth: screenWidth,
-                    isDark: isDark,
-                  ),
-                _RowText(
-                  '\$${order.total.toStringAsFixed(2)}',
-                  flex: 2,
-                  screenWidth: screenWidth,
-                  isDark: isDark,
-                  isBold: true,
-                  color: isDark
-                      ? AppColors.darkButtonsPrimary
-                      : AppColors.accentBlue,
-                ),
-                if (screenWidth > 800)
-                  _RowText(
-                    createdText,
-                    flex: 4,
-                    screenWidth: screenWidth,
-                    isDark: isDark,
-                  ),
-                if (screenWidth <= 800 && screenWidth > 600)
-                  _RowText(
-                    createdText,
-                    flex: 3,
-                    screenWidth: screenWidth,
-                    isDark: isDark,
-                  ),
-              ],
-            ),
+            flex: 3,
+            child: Text(product.name, style: _rowStyle(isDark, bold: true)),
           ),
-          SizedBox(width: screenWidth > 800 ? 12 : 8),
-          Container(
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.danger.withOpacity(0.1)
-                  : Colors.red.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
+          if (screenWidth > 600)
+            Expanded(
+              flex: 2,
+              child: Text('#${product.id}', style: _rowStyle(isDark)),
+            ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              '\$${product.price.toStringAsFixed(2)}',
+              style: TextStyle(
                 color: isDark
-                    ? AppColors.danger.withOpacity(0.3)
-                    : Colors.red.shade200,
+                    ? AppColors.darkButtonsPrimary
+                    : AppColors.accentBlue,
+                fontWeight: FontWeight.bold,
               ),
-            ),
-            child: IconButton(
-              onPressed: () async {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return Dialog(
-                      backgroundColor: isDark
-                          ? AppColors.darkBgElevated
-                          : AppColors.lightBgElevated,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Delete Order?',
-                              style: TextStyle(
-                                color: isDark
-                                    ? AppColors.darkTextPrimary
-                                    : AppColors.lightTextPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              "Are you sure you want to delete this order?\nThis action cannot be undone.",
-                              style: TextStyle(
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : Colors.grey.shade600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
-                                    side: BorderSide(
-                                      color: isDark
-                                          ? AppColors.borderSubtle
-                                          : Colors.grey.shade400,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Cancel',
-                                    style: TextStyle(
-                                      color: isDark
-                                          ? AppColors.darkTextSecondary
-                                          : Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton(
-                                  onPressed: () async {
-                                    Navigator.of(context).pop();
-                                    final productsProvider = context
-                                        .read<ProductsProvider>();
-                                    await productsProvider.archiveProduct(
-                                      order.id,
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Order #${order.id} deleted',
-                                        ),
-                                        backgroundColor: Colors.red,
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Delete',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-              icon: Icon(
-                Icons.delete_outline,
-                color: isDark ? AppColors.danger : Colors.red.shade600,
-                size: screenWidth > 800 ? 22 : 18,
-              ),
-              tooltip: 'Delete Order',
             ),
           ),
-          SizedBox(width: screenWidth > 800 ? 12 : 8),
-          Container(
-            decoration: BoxDecoration(
-              color: expanded
-                  ? (isDark
-                        ? AppColors.darkButtonsPrimary.withOpacity(0.2)
-                        : AppColors.accentBlue.withOpacity(0.15))
-                  : isDark
-                  ? AppColors.darkBgSurface
-                  : Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: expanded
-                    ? (isDark
-                          ? AppColors.darkButtonsPrimary
-                          : AppColors.accentBlue)
-                    : isDark
-                    ? AppColors.borderSubtle
-                    : Colors.grey.shade300,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                onPressed: () =>
+                    context.read<ProductsProvider>().archiveProduct(product.id),
               ),
-            ),
-            child: IconButton(
-              onPressed: () {
-                setState(() {
-                  if (expanded) {
-                    _expandedOrders.remove(order.id);
-                  } else {
-                    _expandedOrders.add(order.id);
-                  }
-                });
-              },
-              icon: Icon(
-                expanded ? Icons.expand_less : Icons.expand_more,
-                color: expanded
-                    ? (isDark
-                          ? AppColors.darkTextPrimary
-                          : AppColors.accentBlue)
-                    : isDark
-                    ? AppColors.darkTextSecondary
-                    : Colors.black87,
-                size: screenWidth > 800 ? 22 : 18,
+              IconButton(
+                icon: Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+                onPressed: () => setState(() {
+                  expanded
+                      ? _expandedProducts.remove(product.id)
+                      : _expandedProducts.add(product.id);
+                }),
               ),
-              tooltip: expanded ? 'Hide Details' : 'View Details',
-            ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _orderDetails(Order order, double screenWidth, bool isDark) {
+  Widget _productDetails(productModel product, bool isDark) {
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: screenWidth > 800 ? 24 : 16,
-        vertical: 20,
-      ),
-      color: isDark
-          ? AppColors.darkButtonsPrimary.withOpacity(0.08)
-          : AppColors.accentBlue.withOpacity(0.05),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      color: isDark ? Colors.black26 : Colors.grey.shade50,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Order Items',
+            "Inventory Details",
             style: TextStyle(
+              fontWeight: FontWeight.bold,
               color: isDark
                   ? AppColors.darkButtonsPrimary
                   : AppColors.accentBlue,
-              fontSize: screenWidth > 800 ? 16 : 14,
-              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
-          ...order.items.map(
-            (it) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkBgElevated : Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isDark
-                        ? AppColors.borderSubtle
-                        : Colors.blue.shade100,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: screenWidth > 800 ? 4 : 3,
-                      child: Text(
-                        it.productName ?? 'Product ${it.productId}',
-                        style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextPrimary
-                              : Colors.black87,
-                          fontWeight: FontWeight.w600,
-                          fontSize: screenWidth > 800 ? 14 : 13,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 1,
-                      child: Text(
-                        'x${it.quantity}',
-                        style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : Colors.grey.shade700,
-                          fontSize: screenWidth > 800 ? 14 : 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '\$${it.unitPrice.toStringAsFixed(2)} each',
-                        style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : Colors.grey.shade700,
-                          fontSize: screenWidth > 800 ? 14 : 13,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '\$${(it.total).toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextPrimary
-                              : Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: screenWidth > 800 ? 16 : 14,
-                        ),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
+          const SizedBox(height: 12),
+          Text("Current Stock: ${product.stock}", style: _rowStyle(isDark)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationFooter(ProductsProvider provider, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkBgElevated : Colors.grey.shade100,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text("Page ${provider.currentPage}", style: _rowStyle(isDark)),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: provider.currentPage > 1
+                    ? () => provider.previousPage()
+                    : null,
               ),
-            ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: (provider.hasMore)
+                    ? () => provider.nextPage()
+                    : null,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  TextStyle _rowStyle(bool isDark, {bool bold = false}) => TextStyle(
+    color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+    fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+    fontSize: 15,
+  );
 }
 
 class _HeaderText extends StatelessWidget {
@@ -721,7 +454,6 @@ class _HeaderText extends StatelessWidget {
   final int flex;
   final double screenWidth;
   final bool isDark;
-
   const _HeaderText(
     this.text, {
     required this.flex,
@@ -739,43 +471,7 @@ class _HeaderText extends StatelessWidget {
           color: isDark ? AppColors.darkTextSecondary : Colors.grey.shade600,
           fontSize: screenWidth > 800 ? 13 : 12,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
         ),
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
-
-class _RowText extends StatelessWidget {
-  final String text;
-  final int flex;
-  final double screenWidth;
-  final bool isDark;
-  final bool isBold;
-  final Color? color;
-
-  const _RowText(
-    this.text, {
-    required this.flex,
-    required this.screenWidth,
-    required this.isDark,
-    this.isBold = false,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color ?? (isDark ? AppColors.darkTextPrimary : Colors.black87),
-          fontSize: screenWidth > 800 ? 15 : 14,
-          fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-        ),
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }

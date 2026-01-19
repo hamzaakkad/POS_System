@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:pos_system/providers/product_provider.dart';
 import 'package:pos_system/providers/categories_provider.dart'; // Add this import
+import 'package:pos_system/providers/theme_provider.dart';
+import 'package:pos_system/reusable%20widgets/AppColors.dart';
 import 'package:provider/provider.dart';
 import '../services/product_service.dart';
 import '../pages/pos_dashboard.dart';
@@ -40,9 +42,10 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
   @override
   Widget build(BuildContext context) {
     final categoriesProvider = context.watch<CategoriesProvider>();
+    final isDark = context.watch<ThemeProvider>().isDark;
 
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppColors.darkBgSurface : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 10,
       child: Container(
@@ -57,10 +60,10 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Add New Product',
                     style: TextStyle(
-                      color: Colors.black,
+                      color: isDark ? AppColors.darkTextPrimary : Colors.black,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
@@ -75,10 +78,10 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
               const SizedBox(height: 32),
 
               // PRODUCT NAME
-              const Text(
+              Text(
                 'Product Name',
                 style: TextStyle(
-                  color: Colors.black87,
+                  color: isDark ? AppColors.darkTextPrimary : Colors.black87,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -86,13 +89,22 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: isDark
+                      ? AppColors.darkBgElevated
+                      : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: isDark
+                        ? AppColors.darkButtonsPrimary
+                        : Colors.grey.shade300,
+                  ),
                 ),
                 child: TextField(
                   controller: postProductNameController,
-                  style: const TextStyle(color: Colors.black87, fontSize: 16),
+                  style: TextStyle(
+                    color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+                    fontSize: 16,
+                  ),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.all(16),
@@ -111,10 +123,12 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Price',
                           style: TextStyle(
-                            color: Colors.black87,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : Colors.black87,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -122,27 +136,37 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: isDark
+                                ? AppColors.darkBgElevated
+                                : Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkButtonsPrimary
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                           child: TextField(
                             controller: postProductPriceController,
                             keyboardType: TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            style: const TextStyle(
-                              color: Colors.black87,
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkTextPrimary
+                                  : Colors.black87,
                               fontSize: 16,
                             ),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.all(16),
                               hintText: '0.00',
                               hintStyle: TextStyle(color: Colors.grey),
-                              prefixText: '\$',
+                              prefixText: '\$ ',
                               prefixStyle: TextStyle(
-                                color: Colors.black87,
+                                color: isDark
+                                    ? AppColors.darkButtonsPrimary
+                                    : AppColors.accentBlue,
                                 fontSize: 16,
                               ),
                             ),
@@ -158,10 +182,12 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Quantity',
                           style: TextStyle(
-                            color: Colors.black87,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : Colors.black87,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -169,15 +195,23 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: isDark
+                                ? AppColors.darkBgElevated
+                                : Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkButtonsPrimary
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                           child: TextField(
                             controller: postProductStorageQuantityController,
                             keyboardType: TextInputType.number,
-                            style: const TextStyle(
-                              color: Colors.black87,
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkTextPrimary
+                                  : Colors.black87,
                               fontSize: 16,
                             ),
                             decoration: const InputDecoration(
@@ -197,10 +231,10 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
               const SizedBox(height: 20),
 
               // CATEGORY SELECTION (Dropdown now not a text field which was only for testing)
-              const Text(
+              Text(
                 'Category',
                 style: TextStyle(
-                  color: Colors.black87,
+                  color: isDark ? AppColors.darkTextPrimary : Colors.black87,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -208,9 +242,15 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: isDark
+                      ? AppColors.darkBgElevated
+                      : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: isDark
+                        ? AppColors.darkButtonsPrimary
+                        : Colors.grey.shade300,
+                  ),
                 ),
                 child: categoriesProvider.isLoading
                     ? const Padding(
@@ -235,20 +275,23 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                             ...categoriesProvider.categories.map((category) {
                               return DropdownMenuItem(
                                 value: category.id,
-                                child: Text(category.name), // how am i getting those?? easier that it looks and easier than i thought it would be
+                                child: Text(
+                                  category.name,
+                                ), // how am i getting those?? easier that it looks and easier than i thought it would be
                                 // when the application opens or refreshes the categories do as well and they store their data in the category model
-                                // what im doing here is just taking this data and displaying it just as i do with the pos_dashboard 
-                                // at first glance i thought i have to call the function to retrive the category name and id 
+                                // what im doing here is just taking this data and displaying it just as i do with the pos_dashboard
+                                // at first glance i thought i have to call the function to retrive the category name and id
                                 // lol at first i even usen only id's to ad catrgories to the products that was for testing purposes for sure
-
                               );
-                            }).toList(),// i want it here flutter
+                            }).toList(), // i want it here flutter
                           ],
                           onChanged: (value) {
-                            setState(() {
-                              _selectedCategoryId = value;
-                            });// i should use setstate to display the image picked by the user aswell and i should later add the option to revert back(unselect that image )
-                            // and selecting another image insted or even resizing the existing one 
+                            setState(
+                              () {
+                                _selectedCategoryId = value;
+                              },
+                            ); // i should use setstate to display the image picked by the user aswell and i should later add the option to revert back(unselect that image )
+                            // and selecting another image insted or even resizing the existing one
                           },
                         ),
                       ),
@@ -257,10 +300,10 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
               const SizedBox(height: 24),
 
               // IMAGE PICKER
-              const Text(
+              Text(
                 'Product Image',
                 style: TextStyle(
-                  color: Colors.black87,
+                  color: isDark ? AppColors.darkTextPrimary : Colors.black87,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -272,9 +315,16 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                   width: double.infinity,
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: isDark
+                        ? AppColors.darkBgElevated
+                        : Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade300, width: 1.5),
+                    border: Border.all(
+                      color: isDark
+                          ? AppColors.darkButtonsPrimary
+                          : Colors.grey.shade300,
+                      width: 1.5,
+                    ),
                   ),
                   child: _pickedImageFile != null
                       ? ClipRRect(
@@ -290,14 +340,18 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                             children: [
                               Icon(
                                 Icons.photo_library_outlined,
-                                color: Colors.grey.shade400,
+                                color: isDark
+                                    ? AppColors.borderSubtle
+                                    : Colors.grey.shade400,
                                 size: 48,
                               ),
                               const SizedBox(height: 12),
                               Text(
                                 'Click to upload an image',
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
+                                  color: isDark
+                                      ? AppColors.darkTextMuted
+                                      : Colors.grey.shade600,
                                   fontSize: 14,
                                 ),
                               ),
@@ -317,15 +371,21 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.grey.shade400),
+                        side: BorderSide(
+                          color: isDark
+                              ? AppColors.darkButtonsPrimary
+                              : Colors.grey.shade400,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'CANCEL',
                         style: TextStyle(
-                          color: Colors.black87,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : Colors.black87,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -339,7 +399,9 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                     child: ElevatedButton(
                       onPressed: _postProduct,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0277FA),
+                        backgroundColor: isDark
+                            ? AppColors.darkButtonsPrimary
+                            : AppColors.accentBlue,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -350,7 +412,7 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                         'ADD PRODUCT',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -507,132 +569,133 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
   //   }
   // }
   Future<void> _postProduct() async {
-  // Validate inputs فخ ةشنث  arabic!!!! to make sure they are correct and not empty only not em[ty actually]
-  if (postProductNameController.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please enter a product name'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    return;
-  }
-
-  if (postProductPriceController.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please enter a price'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    return;
-  }
-
-  if (postProductStorageQuantityController.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please enter a quantity'),
-        backgroundColor: Colors.red,
-      ),
-    );
-    return;
-  }
-
-  try {
-    final name = postProductNameController.text;
-    final price = double.tryParse(postProductPriceController.text) ?? 0.0;
-    final stock = int.tryParse(postProductStorageQuantityController.text) ?? 0;
-
-    if (price <= 0) {
+    // Validate inputs فخ ةشنث  arabic!!!! to make sure they are correct and not empty only not em[ty actually]
+    if (postProductNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Price must be greater than 0'),
+          content: Text('Please enter a product name'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    if (stock < 0) {
+    if (postProductPriceController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Quantity cannot be negative'),
+          content: Text('Please enter a price'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    String? uploadedUrl;
+    if (postProductStorageQuantityController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a quantity'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    // Upload image if selected
-    if (_pickedImageFile != null) {
-      try {
-        uploadedUrl = await _productService.uploadImage(_pickedImageFile!);
-        debugPrint('Image uploaded: $uploadedUrl');
-      } catch (e) {
+    try {
+      final name = postProductNameController.text;
+      final price = double.tryParse(postProductPriceController.text) ?? 0.0;
+      final stock =
+          int.tryParse(postProductStorageQuantityController.text) ?? 0;
+
+      if (price <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Image upload failed: $e'),
+          const SnackBar(
+            content: Text('Price must be greater than 0'),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
+
+      if (stock < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Quantity cannot be negative'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      String? uploadedUrl;
+
+      // Upload image if selected
+      if (_pickedImageFile != null) {
+        try {
+          uploadedUrl = await _productService.uploadImage(_pickedImageFile!);
+          debugPrint('Image uploaded: $uploadedUrl');
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Image upload failed: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      }
+
+      // DEBUG: Log what the ui is about to send for testing purposes
+      debugPrint('Selected category ID: $_selectedCategoryId');
+      debugPrint('Selected category name: $_selectedCategoryName');
+
+      // Prepare product data
+      final productData = {
+        'name': name,
+        'price': price,
+        'storage_quantity': stock,
+        if (uploadedUrl != null) 'image_url': uploadedUrl,
+        if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
+      };
+
+      debugPrint('Posting product data: $productData');
+
+      // Create product using postProductRaw not postProduct i should delete that one
+      await _productService.postProductRaw(productData);
+
+      // Refresh products
+      await context.read<ProductsProvider>().refresh();
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Product added successfully!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Clear form
+      postProductNameController.clear();
+      postProductPriceController.clear();
+      postProductStorageQuantityController.clear();
+      setState(() {
+        _selectedCategoryId = null;
+        _selectedCategoryName = null;
+        _pickedImageFile = null;
+      });
+
+      // Close dialog
+      // i just implemented this i should have done that earlier but np
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint('Error posting product: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to add product: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-
-    // DEBUG: Log what the ui is about to send for testing purposes
-    debugPrint('Selected category ID: $_selectedCategoryId');
-    debugPrint('Selected category name: $_selectedCategoryName');
-
-    // Prepare product data
-    final productData = {
-      'name': name,
-      'price': price,
-      'storage_quantity': stock,
-      if (uploadedUrl != null) 'image_url': uploadedUrl,
-      if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
-    };
-
-    debugPrint('Posting product data: $productData');
-
-    // Create product using postProductRaw not postProduct i should delete that one
-    await _productService.postProductRaw(productData);
-
-    // Refresh products
-    await context.read<ProductsProvider>().refresh();
-
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Product added successfully!"),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // Clear form
-    postProductNameController.clear();
-    postProductPriceController.clear();
-    postProductStorageQuantityController.clear();
-    setState(() {
-      _selectedCategoryId = null;
-      _selectedCategoryName = null;
-      _pickedImageFile = null;
-    });
-
-    // Close dialog
-    // i just implemented this i should have done that earlier but np
-    Navigator.pop(context);
-  } catch (e) {
-    debugPrint('Error posting product: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Failed to add product: $e"),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
-}
 
   // ================= ARCHIVE PRODUCT =================
   static void archiveProduct(BuildContext context, int productId) async {

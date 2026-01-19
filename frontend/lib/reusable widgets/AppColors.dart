@@ -39,6 +39,7 @@ class AppColors {
   static const lightBgPrimary = Color(0xFFF5F6FA);
   static const lightBgSurface = Colors.white;
   static const lightBgElevated = Colors.white;
+  static const lightSubtleOutlined = Color.fromARGB(255, 234, 236, 244);
 
   static const lightTextPrimary = Color(0xFF1C1C1E);
   static const lightTextSecondary = Color(0xFF6E6E73);
@@ -47,6 +48,7 @@ class AppColors {
   // ===== SHARED =====
   static const accentBlue = Color(0xFF0277FA);
   static const borderSubtle = Color(0xFF262B3A);
+  static const borderSubtleOutlined = Color.fromARGB(255, 28, 31, 44);
 
   static const success = Color(0xFF3DDC97);
   static const warning = Color(0xFFF4B860);
