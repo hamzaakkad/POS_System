@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:pos_system/pages/account_page.dart';
+import 'package:pos_system/pages/user_profile_page.dart';
 import 'package:pos_system/providers/categories_provider.dart';
+import 'package:pos_system/providers/account_provider.dart';
 import 'package:pos_system/reusable%20widgets/CategoriesUi.dart';
 import 'package:provider/provider.dart';
 import '../pages/orders_page.dart';
-import '../services/product_service.dart';
 import '../models/product_model.dart';
 import '../reusable widgets/HoverArchiveWidget.dart';
 import '../services/orders_service.dart';
@@ -17,7 +19,6 @@ import '../reusable widgets/Productdialogwidget.dart';
 import '../reusable widgets/UiWidgets.dart';
 import '../providers/theme_provider.dart';
 import '../reusable widgets/AppColors.dart';
-import '../services/categories_service.dart';
 import '../pages/products_page.dart';
 import 'categories_page.dart';
 
@@ -29,70 +30,29 @@ class PosDashboardPage extends StatefulWidget {
 }
 
 class _PosDashboardPageState extends State<PosDashboardPage> {
-  // ================= DATA =================
-  final postProductService _productService = postProductService();
-  final ArchiveProductService _archiveProductService = ArchiveProductService();
-  final FetchCategoriesService _categoriesService = FetchCategoriesService();
-  final productService _service = productService();
-  final FiltersSheet _filtersSheet = FiltersSheet();
-
   final searchQueryController = TextEditingController();
+  Timer? _debounceTimer;
 
-  // Text controllers for posting products
-  final postProductNameController = TextEditingController();
-  final postProductPriceController = TextEditingController();
-  final postProductStorageQuantityController = TextEditingController();
-  Timer? _debounceTimer; // for debouncing so i get a better ux
+  bool _sidebarExpanded = true;
 
-  // Image picking
-  File? _pickedImageFile;
-  final ImagePicker _picker = ImagePicker();
-
-  // // ================= CATEGORY FILTERS =================
-  // final List<String> categories = [
-  //   'All',
-  //   'Electronics',
-  //   'LifeStyle',
-  //   'Art',
-  //   'Food',
-  //   'Snacks',
-  //   'Drinks',
-  // ];//these were for the old frontend categories approch
-
-  int selectedCategoryIndex = 0; // "All" is selected by default
-  bool _sidebarExpanded = true; // Controls sidebar visibility
-
-  // ================= INIT =================
   @override
   void initState() {
     super.initState();
-    // Load initial products when the page opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProductsProvider>().fetchProducts();
-      context.read<CategoriesProvider>().loadCategories(); // Fetch categories
+      context.read<CategoriesProvider>().loadCategories();
     });
   }
 
   @override
   void dispose() {
-    //for the search field
     _debounceTimer?.cancel();
     searchQueryController.dispose();
-
-    postProductNameController.dispose();
-    postProductPriceController.dispose();
-    postProductStorageQuantityController.dispose();
     super.dispose();
   }
 
-  //=========Search Handler method============
-
-  // Real-time search with debounce it wassssss hard to look for
   void _onSearchChanged(String value) {
-    // Cancel previous timer
     _debounceTimer?.cancel();
-
-    // Start new timer (wait 500ms after the mr.USER to stop typing i think 500 ms is not enough imma make it longer like 750 or 1000)
     _debounceTimer = Timer(const Duration(milliseconds: 750), () {
       if (mounted) {
         _performSearch();
@@ -101,37 +61,24 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
   }
 
   Future<void> _performSearch() async {
-    // Get the search text from the controller
     final query = searchQueryController.text.trim();
-
-    // Get the provider and refresh with search
     final provider = context.read<ProductsProvider>();
 
     try {
-      // Reset to first page when searching just a small method i made in the provider that only has _currentPage = 1 and thats it :)
       provider.resetPagination();
-
-      // Fetch products with the new search query the server side one still tesingggg
       await provider.fetchProducts(
         searchQuery: query.isNotEmpty ? query : null,
       );
-
-      // Clear focus to dismiss keyboard makes for a better ux
       FocusScope.of(context).unfocus();
     } catch (e) {
       debugPrint('Search error: $e');
-      // Show error to user maybe later but for now imma keep it internal only
     }
   }
 
-  // ================= FILTER SHEET =================
-  //was here now its in a seperate file in reusable widgets
-  // ================= CART LOGIC =================
   void _removeFromCart(int productId) {
     context.read<CartProvider>().removeFromCart(productId);
   }
 
-  // ================= CHECKOUT =================
   void _handleCheckout() async {
     List<Map<String, dynamic>> itemsForApi = context
         .read<CartProvider>()
@@ -161,39 +108,27 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
     }
   }
 
-  // ================= CATEGORY SELECTION =================
   void _onCategorySelected(int categoryId, String categoryName) {
-    setState(() {});
-
     final provider = context.read<ProductsProvider>();
-
-    // Applying the category filter
     provider.setCategory(categoryId);
     debugPrint('Selected category: $categoryName (ID: $categoryId)');
   }
 
   void _onCategorySelectedAll() {
-    setState(() {
-      selectedCategoryIndex = 0;
-    });
-
     final provider = context.read<ProductsProvider>();
-    provider.setCategory(null);
+    provider.resetFilters();
     debugPrint('Selected category: All');
   }
 
-  // ================= SIDEBAR WIDGET =================
   Widget _buildSidebar(
     BuildContext context,
     bool isDark,
     ProductsProvider productsProv,
   ) {
-    final sidebarWidth = _sidebarExpanded
-        ? 280.0
-        : 100.0; // DRIVING ME CRAZYYYYYYYY
+    final sidebarWidth = _sidebarExpanded ? 280.0 : 100.0;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 50), // MARK: SIDEBAR TIMNE
+      duration: const Duration(milliseconds: 50),
       width: sidebarWidth,
       height: double.infinity,
       decoration: BoxDecoration(
@@ -214,7 +149,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
       ),
       child: Column(
         children: [
-          // Sidebar Header with Toggle
           Container(
             height: 80,
             padding: EdgeInsets.symmetric(
@@ -268,23 +202,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     ),
                   )
                 else
-                  // Container(
-                  //   width: 40,
-                  //   height: 40,
-                  //   decoration: BoxDecoration(
-                  //     borderRadius: BorderRadius.circular(8),
-                  //     color: isDark
-                  //         ? AppColors.darkButtonsPrimary.withOpacity(0.2)
-                  //         : AppColors.accentBlue.withOpacity(0.2),
-                  //   ),
-                  //   child: Icon(
-                  //     Icons.store,
-                  //     color: isDark
-                  //         ? AppColors.darkButtonsPrimary
-                  //         : AppColors.accentBlue,
-                  //     size: 24,
-                  //   ),
-                  // ),
                   Container(
                     width: 40,
                     height: 40,
@@ -327,14 +244,12 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
             ),
           ),
 
-          // Sidebar Menu Items
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   const SizedBox(height: 20),
 
-                  // Theme Toggle
                   buildSidebarMenuItem(
                     icon: Icons.light_mode,
                     label: 'Theme',
@@ -345,7 +260,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     isExpanded: _sidebarExpanded,
                   ),
 
-                  //Categories Page
                   buildSidebarMenuItem(
                     icon: Icons.category,
                     label: 'Categories',
@@ -360,7 +274,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     },
                     isExpanded: _sidebarExpanded,
                   ),
-                  // Orders Button
                   buildSidebarMenuItem(
                     icon: Icons.receipt_long,
                     label: 'Orders',
@@ -375,7 +288,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     },
                     isExpanded: _sidebarExpanded,
                   ),
-                  //Products button
                   buildSidebarMenuItem(
                     icon: Icons.shopping_cart_sharp,
                     label: 'Products',
@@ -391,32 +303,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                     isExpanded: _sidebarExpanded,
                   ),
 
-                  // Filter Button
-                  // buildSidebarMenuItem(
-                  //   icon: Icons.filter_list,
-                  //   label: 'Filters',
-                  //   isDark: isDark,
-                  //   onTap: () {
-                  //     FiltersSheet.openFilterSheet(context);
-                  //   },
-                  //   isExpanded: _sidebarExpanded,
-                  // ),
-
-                  // // Add Product Button
-                  // buildSidebarMenuItem(
-                  //   icon: Icons.add,
-                  //   label: 'Add Product',
-                  //   isDark: isDark,
-                  //   onTap: () {
-                  //     showDialog(
-                  //       context: context,
-                  //       builder: (context) => const Productdialogwidget(),
-                  //     );
-                  //   },
-                  //   isExpanded: _sidebarExpanded,
-                  // ),
-
-                  // Separator
                   if (_sidebarExpanded)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -431,7 +317,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                       ),
                     ),
 
-                  // System Settings ( needed later)
                   if (_sidebarExpanded)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -454,14 +339,14 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                             icon: Icons.settings,
                             label: 'Settings',
                             isDark: isDark,
-                            onTap: () {}, //forlater
+                            onTap: () {},
                             isExpanded: _sidebarExpanded,
                           ),
                           buildSidebarMenuItem(
                             icon: Icons.help_outline,
                             label: 'Help',
                             isDark: isDark,
-                            onTap: () {}, //forlaterr
+                            onTap: () {},
                             isExpanded: _sidebarExpanded,
                           ),
                         ],
@@ -472,7 +357,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
             ),
           ),
 
-          // User Profile Section
           Container(
             padding: EdgeInsets.all(_sidebarExpanded ? 16 : 12),
             decoration: BoxDecoration(
@@ -495,34 +379,61 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                         ? AppColors.darkButtonsPrimary
                         : AppColors.accentBlue,
                   ),
-                  child: Icon(Icons.person, color: Colors.white, size: 20),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UserProfilePage(),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 if (_sidebarExpanded) ...[
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hamza Akkad',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : AppColors.lightTextPrimary,
-                          ),
-                        ),
-                        Text(
-                          'hamzakkad@pos.com',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? AppColors.darkTextMuted
-                                : AppColors.lightTextMuted,
-                          ),
-                        ),
-                      ],
+                    child: Consumer<AccountProvider>(
+                      builder: (context, accountProvider, _) {
+                        final userName =
+                            accountProvider.currentUser?.name ?? 'Guest User';
+                        final userEmail =
+                            accountProvider.currentUser?.email ?? 'No email';
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              userName,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.darkTextPrimary
+                                    : AppColors.lightTextPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              userEmail,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.darkTextMuted
+                                    : AppColors.lightTextMuted,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -548,11 +459,10 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
             final isDark = context.watch<ThemeProvider>().isDark;
             final productsProv = context.watch<ProductsProvider>();
 
-            // Responsive calculations
             final cartPanelWidth = screenWidth > 1200
                 ? 370
                 : screenWidth > 800
-                ? 360 //MARK: WIDTH
+                ? 360
                 : 340;
 
             final gridCrossAxisCount = screenWidth > 1400
@@ -576,15 +486,12 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ================= SIDEBAR =================
                 _buildSidebar(context, isDark, productsProv),
 
-                // ================= MAIN CONTENT =================
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Clean Search Header
                       Container(
                         height: 80,
                         padding: EdgeInsets.symmetric(
@@ -611,7 +518,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                         ),
                         child: Row(
                           children: [
-                            // Search field
                             Expanded(
                               child: Container(
                                 height: 50,
@@ -697,7 +603,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                         ),
                       ),
 
-                      // ================= FILTER & CATEGORIES BAR =================
                       Container(
                         height: 60,
                         decoration: BoxDecoration(
@@ -716,7 +621,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                           builder: (context, productsProv, _) {
                             return Row(
                               children: [
-                                // Scrollable Categories from Provider
                                 Expanded(
                                   child: Consumer<CategoriesProvider>(
                                     builder: (context, categoriesProvider, child) {
@@ -762,7 +666,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                         );
                                       }
 
-                                      // Add "All" category at the beginning
                                       final allCategories = [
                                         {'id': 0, 'name': 'All', 'isAll': true},
                                         ...categoriesProvider.categories.map(
@@ -791,11 +694,14 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                               category['name'] as String;
 
                                           final isSelected =
-                                              // (isAll &&
-                                              //     selectedCategoryIndex == 0) ||
                                               (!isAll &&
-                                              productsProv.category_id ==
-                                                  categoryId);
+                                                  productsProv
+                                                          .selectedCategoryId ==
+                                                      categoryId) ||
+                                              (isAll &&
+                                                  productsProv
+                                                          .selectedCategoryId ==
+                                                      null);
 
                                           return Padding(
                                             padding: const EdgeInsets.symmetric(
@@ -813,7 +719,7 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                                       categoryName,
                                                     );
                                                   }
-                                                }, //MARK: ALL BUTTON
+                                                },
                                                 style: ElevatedButton.styleFrom(
                                                   backgroundColor: isSelected
                                                       ? (isDark
@@ -877,7 +783,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                   ),
                                 ),
 
-                                // More Compact Pagination
                                 Padding(
                                   padding: const EdgeInsets.only(right: 8.0),
                                   child: Row(
@@ -920,7 +825,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                             : AppColors.accentBlue,
                                         onPressed: () {
                                           productsProv.nextPage();
-                                          productsProv.loadMoreProducts();
                                         },
                                       ),
                                     ],
@@ -932,7 +836,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                         ),
                       ),
 
-                      // Products Grid
                       Expanded(
                         child: Container(
                           color: isDark
@@ -1017,7 +920,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            // Product Image
                                             Expanded(
                                               child: Container(
                                                 width: double.infinity,
@@ -1089,7 +991,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                               ),
                                             ),
 
-                                            // Product Info
                                             Padding(
                                               padding: const EdgeInsets.all(12),
                                               child: Column(
@@ -1234,7 +1135,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                   ),
                 ),
 
-                // ================= RIGHT ORDER PANEL =================
                 Container(
                   width: cartPanelWidth.toDouble(),
                   height: double.infinity,
@@ -1259,7 +1159,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                   ),
                   child: Column(
                     children: [
-                      // Order Header
                       Container(
                         height: 80,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1347,7 +1246,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                         ),
                       ),
 
-                      // Order Items
                       Expanded(
                         child: context.watch<CartProvider>().cart.isEmpty
                             ? Center(
@@ -1536,7 +1434,6 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                               ),
                       ),
 
-                      // Order Summary
                       if (context.watch<CartProvider>().cart.isNotEmpty)
                         Container(
                           padding: EdgeInsets.all(screenWidth > 800 ? 24 : 16),

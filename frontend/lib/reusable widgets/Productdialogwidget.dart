@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:pos_system/providers/product_provider.dart';
-import 'package:pos_system/providers/categories_provider.dart'; // Add this import
+import 'package:pos_system/providers/categories_provider.dart';
 import 'package:pos_system/providers/theme_provider.dart';
 import 'package:pos_system/reusable%20widgets/AppColors.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +18,7 @@ class Productdialogwidget extends StatefulWidget {
 
 class ProductdialogwidgetState extends State<Productdialogwidget> {
   final postProductService _productService = postProductService();
+  final UpdateProductService _updateProductService = UpdateProductService();
   final postProductNameController = TextEditingController();
   final postProductPriceController = TextEditingController();
   final postProductStorageQuantityController = TextEditingController();
@@ -26,9 +27,20 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
   File? _pickedImageFile;
   final ImagePicker _picker = ImagePicker();
 
-  // Category selection
-  int? _selectedCategoryId;
-  String? _selectedCategoryName;
+  final Set<int> _selectedCategoryIds = {};
+
+  final List<Color> _shuffledColors = [
+    // Colors.blue.shade400,
+    // Colors.purple.shade400,
+    // Colors.orange.shade400,
+    // Colors.green.shade400,
+    Colors.blue,
+    Colors.purple,
+    Colors.orange,
+    Colors.green,
+    Colors.teal,
+    Colors.pink,
+  ];
 
   @override
   void dispose() {
@@ -50,270 +62,49 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
       elevation: 10,
       child: Container(
         constraints: const BoxConstraints(maxWidth: 500),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // HEADER
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Add New Product',
-                    style: TextStyle(
-                      color: isDark ? AppColors.darkTextPrimary : Colors.black,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Add New Product',
+                      style: TextStyle(
+                        color: isDark
+                            ? AppColors.darkTextPrimary
+                            : Colors.black,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey, size: 24),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-              // PRODUCT NAME
-              Text(
-                'Product Name',
-                style: TextStyle(
-                  color: isDark ? AppColors.darkTextPrimary : Colors.black87,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.grey,
+                        size: 24,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkBgElevated
-                      : Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isDark
-                        ? AppColors.darkButtonsPrimary
-                        : Colors.grey.shade300,
-                  ),
-                ),
-                child: TextField(
-                  controller: postProductNameController,
+
+                const SizedBox(height: 32),
+
+                Text(
+                  'Product Name',
                   style: TextStyle(
                     color: isDark ? AppColors.darkTextPrimary : Colors.black87,
-                    fontSize: 16,
-                  ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(16),
-                    hintText: 'Enter product name...',
-                    hintStyle: TextStyle(color: Colors.grey),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // PRICE AND QUANTITY ROW
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Price',
-                          style: TextStyle(
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : Colors.black87,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.darkBgElevated
-                                : Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkButtonsPrimary
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: postProductPriceController,
-                            keyboardType: TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppColors.darkTextPrimary
-                                  : Colors.black87,
-                              fontSize: 16,
-                            ),
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.all(16),
-                              hintText: '0.00',
-                              hintStyle: TextStyle(color: Colors.grey),
-                              prefixText: '\$ ',
-                              prefixStyle: TextStyle(
-                                color: isDark
-                                    ? AppColors.darkButtonsPrimary
-                                    : AppColors.accentBlue,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 20),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Quantity',
-                          style: TextStyle(
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : Colors.black87,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.darkBgElevated
-                                : Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkButtonsPrimary
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: postProductStorageQuantityController,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(
-                              color: isDark
-                                  ? AppColors.darkTextPrimary
-                                  : Colors.black87,
-                              fontSize: 16,
-                            ),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.all(16),
-                              hintText: '0',
-                              hintStyle: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // CATEGORY SELECTION (Dropdown now not a text field which was only for testing)
-              Text(
-                'Category',
-                style: TextStyle(
-                  color: isDark ? AppColors.darkTextPrimary : Colors.black87,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkBgElevated
-                      : Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isDark
-                        ? AppColors.darkButtonsPrimary
-                        : Colors.grey.shade300,
-                  ),
-                ),
-                child: categoriesProvider.isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    : DropdownButtonHideUnderline(
-                        child: DropdownButtonFormField<int>(
-                          value: _selectedCategoryId,
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ),
-                          ),
-                          hint: const Text('Select Category'),
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('No Category'),
-                            ),
-                            ...categoriesProvider.categories.map((category) {
-                              return DropdownMenuItem(
-                                value: category.id,
-                                child: Text(
-                                  category.name,
-                                ), // how am i getting those?? easier that it looks and easier than i thought it would be
-                                // when the application opens or refreshes the categories do as well and they store their data in the category model
-                                // what im doing here is just taking this data and displaying it just as i do with the pos_dashboard
-                                // at first glance i thought i have to call the function to retrive the category name and id
-                                // lol at first i even usen only id's to ad catrgories to the products that was for testing purposes for sure
-                              );
-                            }).toList(), // i want it here flutter
-                          ],
-                          onChanged: (value) {
-                            setState(
-                              () {
-                                _selectedCategoryId = value;
-                              },
-                            ); // i should use setstate to display the image picked by the user aswell and i should later add the option to revert back(unselect that image )
-                            // and selecting another image insted or even resizing the existing one
-                          },
-                        ),
-                      ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // IMAGE PICKER
-              Text(
-                'Product Image',
-                style: TextStyle(
-                  color: isDark ? AppColors.darkTextPrimary : Colors.black87,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: pickImage,
-                child: Container(
-                  width: double.infinity,
-                  height: 150,
+                const SizedBox(height: 8),
+                Container(
                   decoration: BoxDecoration(
                     color: isDark
                         ? AppColors.darkBgElevated
@@ -323,111 +114,348 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
                       color: isDark
                           ? AppColors.darkButtonsPrimary
                           : Colors.grey.shade300,
-                      width: 1.5,
                     ),
                   ),
-                  child: _pickedImageFile != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(
-                            _pickedImageFile!,
-                            fit: BoxFit.cover,
+                  child: TextField(
+                    controller: postProductNameController,
+                    style: TextStyle(
+                      color: isDark
+                          ? AppColors.darkTextPrimary
+                          : Colors.black87,
+                      fontSize: 16,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.all(16),
+                      hintText: 'Enter product name...',
+                      hintStyle: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Price',
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkTextPrimary
+                                  : Colors.black87,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        )
-                      : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.photo_library_outlined,
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.darkBgElevated
+                                  : Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
                                 color: isDark
-                                    ? AppColors.borderSubtle
-                                    : Colors.grey.shade400,
-                                size: 48,
+                                    ? AppColors.darkButtonsPrimary
+                                    : Colors.grey.shade300,
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Click to upload an image',
-                                style: TextStyle(
+                            ),
+                            child: TextField(
+                              controller: postProductPriceController,
+                              keyboardType: TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              style: TextStyle(
+                                color: isDark
+                                    ? AppColors.darkTextPrimary
+                                    : Colors.black87,
+                                fontSize: 16,
+                              ),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.all(16),
+                                hintText: '0.00',
+                                hintStyle: TextStyle(color: Colors.grey),
+                                prefixText: '\$ ',
+                                prefixStyle: TextStyle(
                                   color: isDark
-                                      ? AppColors.darkTextMuted
-                                      : Colors.grey.shade600,
-                                  fontSize: 14,
+                                      ? AppColors.darkButtonsPrimary
+                                      : AppColors.accentBlue,
+                                  fontSize: 16,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 20),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Quantity',
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkTextPrimary
+                                  : Colors.black87,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.darkBgElevated
+                                  : Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppColors.darkButtonsPrimary
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
+                            child: TextField(
+                              controller: postProductStorageQuantityController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(
+                                color: isDark
+                                    ? AppColors.darkTextPrimary
+                                    : Colors.black87,
+                                fontSize: 16,
+                              ),
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.all(16),
+                                hintText: '0',
+                                hintStyle: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                Text(
+                  'Categories',
+                  style: TextStyle(
+                    color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkBgElevated
+                        : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isDark
+                          ? AppColors.darkButtonsPrimary
+                          : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: categoriesProvider.isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: categoriesProvider.categories.map((
+                            category,
+                          ) {
+                            final isSelected = _selectedCategoryIds.contains(
+                              category.id,
+                            );
+                            final chipColor =
+                                //_shuffledColors[_shuffledColors.length]; //why is this making soo much errorrrrrssssss
+                                _shuffledColors[category.id! %
+                                    _shuffledColors.length];
+
+                            return FilterChip(
+                              // cool that flutter has this widget built in
+                              label: Text(category.name),
+                              labelStyle: TextStyle(
+                                color: isSelected
+                                    // ? (isDark
+                                    //       ? Colors.black87
+                                    //       : AppColors.darkTextPrimary)
+                                    ? AppColors.darkTextPrimary
+                                    : _shuffledColors[category.id! %
+                                          _shuffledColors
+                                              .length], //Colors.white
+
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              selected: isSelected,
+                              onSelected: (bool selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedCategoryIds.add(category.id!);
+                                  } else {
+                                    _selectedCategoryIds.remove(category.id);
+                                  }
+                                });
+                              },
+                              selectedColor: chipColor,
+                              checkmarkColor: Colors.white,
+                              backgroundColor: isDark
+                                  ? AppColors.darkBgPrimary
+                                  : Colors.grey.shade200,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            );
+                          }).toList(),
                         ),
                 ),
-              ),
 
-              const SizedBox(height: 32),
+                const SizedBox(height: 24),
 
-              // BUTTONS
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(
-                          color: isDark
-                              ? AppColors.darkButtonsPrimary
-                              : Colors.grey.shade400,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        'CANCEL',
-                        style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextPrimary
-                              : Colors.black87,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                Text(
+                  'Product Image',
+                  style: TextStyle(
+                    color: isDark ? AppColors.darkTextPrimary : Colors.black87,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
-
-                  const SizedBox(width: 16),
-
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _postProduct,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: pickImage,
+                  child: Container(
+                    width: double.infinity,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.darkBgElevated
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark
                             ? AppColors.darkButtonsPrimary
-                            : AppColors.accentBlue,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
+                            : Colors.grey.shade300,
+                        width: 1.5,
                       ),
-                      child: const Text(
-                        'ADD PRODUCT',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                    ),
+                    child: _pickedImageFile != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.file(
+                              _pickedImageFile!,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.photo_library_outlined,
+                                  color: isDark
+                                      ? AppColors.borderSubtle
+                                      : Colors.grey.shade400,
+                                  size: 48,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Click to upload an image',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? AppColors.darkTextMuted
+                                        : Colors.grey.shade600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(
+                            color: isDark
+                                ? AppColors.darkButtonsPrimary
+                                : Colors.grey.shade400,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          'CANCEL',
+                          style: TextStyle(
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : Colors.black87,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+
+                    const SizedBox(width: 16),
+
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _postProduct,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isDark
+                              ? AppColors.darkButtonsPrimary
+                              : AppColors.accentBlue,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'ADD PRODUCT',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ================= IMAGE PICKING =================
   Future<void> pickImage() async {
     try {
       final XFile? image = await _picker.pickImage(
@@ -454,120 +482,6 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
     }
   }
 
-  // ================= POST PRODUCT FUNCTION =================
-  // Future<void> _postProduct() async {
-  //   // Validate inputs
-  //   if (postProductNameController.text.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text('Please enter a product name'),
-  //         backgroundColor: Colors.red,
-  //       ),
-  //     );
-  //     return;
-  //   }
-
-  //   if (postProductPriceController.text.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text('Please enter a price'),
-  //         backgroundColor: Colors.red,
-  //       ),
-  //     );
-  //     return;
-  //   }
-
-  //   if (postProductStorageQuantityController.text.isEmpty) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text('Please enter a quantity'),
-  //         backgroundColor: Colors.red,
-  //       ),
-  //     );
-  //     return;
-  //   }
-
-  //   try {
-  //     final name = postProductNameController.text;
-  //     final price = double.tryParse(postProductPriceController.text) ?? 0.0;
-  //     final stock =
-  //         int.tryParse(postProductStorageQuantityController.text) ?? 0;
-
-  //     if (price <= 0) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(
-  //           content: Text('Price must be greater than 0'),
-  //           backgroundColor: Colors.red,
-  //         ),
-  //       );
-  //       return;
-  //     }
-
-  //     if (stock < 0) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(
-  //           content: Text('Quantity cannot be negative'),
-  //           backgroundColor: Colors.red,
-  //         ),
-  //       );
-  //       return;
-  //     }
-
-  //     String? uploadedUrl;
-
-  //     // Upload image if selected
-  //     if (_pickedImageFile != null) {
-  //       try {
-  //         uploadedUrl = await _productService.uploadImage(_pickedImageFile!);
-  //         debugPrint('Image uploaded: $uploadedUrl');
-  //       } catch (e) {
-  //         ScaffoldMessenger.of(context).showSnackBar(
-  //           SnackBar(
-  //             content: Text('Image upload failed: $e'),
-  //             backgroundColor: Colors.red,
-  //           ),
-  //         );
-  //         return;
-  //       }
-  //     }
-
-  //     // Prepare product data
-  //     final productData = {
-  //       'name': name,
-  //       'price': price,
-  //       'storage_quantity': stock,
-  //       if (uploadedUrl != null) 'image_url': uploadedUrl,
-  //       if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
-  //     };
-
-  //     debugPrint('Posting product data: $productData');
-
-  //     // Create product using postProductRaw
-  //     await _productService.postProductRaw(productData);
-
-  //     // Refresh products
-  //     await context.read<ProductsProvider>().refresh();
-
-  //     // Show success message
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text("Product added successfully!"),
-  //         backgroundColor: Colors.green,
-  //       ),
-  //     );
-
-  //     // Close dialog
-  //     Navigator.pop(context);
-  //   } catch (e) {
-  //     debugPrint('Error posting product: $e');
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: Text("Failed to add product: $e"),
-  //         backgroundColor: Colors.red,
-  //       ),
-  //     );
-  //   }
-  // }
   Future<void> _postProduct() async {
     // Validate inputs فخ ةشنث  arabic!!!! to make sure they are correct and not empty only not em[ty actually]
     if (postProductNameController.text.isEmpty) {
@@ -628,7 +542,6 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
 
       String? uploadedUrl;
 
-      // Upload image if selected
       if (_pickedImageFile != null) {
         try {
           uploadedUrl = await _productService.uploadImage(_pickedImageFile!);
@@ -644,28 +557,26 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
         }
       }
 
-      // DEBUG: Log what the ui is about to send for testing purposes
-      debugPrint('Selected category ID: $_selectedCategoryId');
-      debugPrint('Selected category name: $_selectedCategoryName');
+      List<int> categoryIds = _selectedCategoryIds.toList();
 
-      // Prepare product data
+      // DEBUG: Log what the ui is about to send for testing purposes
+      debugPrint('Selected category IDs: $categoryIds');
+
       final productData = {
         'name': name,
         'price': price,
         'storage_quantity': stock,
         if (uploadedUrl != null) 'image_url': uploadedUrl,
-        if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
+        'category_ids': categoryIds, // Sending the list to backend
       };
 
       debugPrint('Posting product data: $productData');
 
       // Create product using postProductRaw not postProduct i should delete that one
-      await _productService.postProductRaw(productData);
-
-      // Refresh products
+       await _productService.postProductRaw(productData);
+     // await _updateProductService.updateProduct(productData, 164);
       await context.read<ProductsProvider>().refresh();
 
-      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Product added successfully!"),
@@ -673,17 +584,14 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
         ),
       );
 
-      // Clear form
       postProductNameController.clear();
       postProductPriceController.clear();
       postProductStorageQuantityController.clear();
       setState(() {
-        _selectedCategoryId = null;
-        _selectedCategoryName = null;
+        _selectedCategoryIds.clear();
         _pickedImageFile = null;
       });
 
-      // Close dialog
       // i just implemented this i should have done that earlier but np
       Navigator.pop(context);
     } catch (e) {
@@ -697,7 +605,6 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
     }
   }
 
-  // ================= ARCHIVE PRODUCT =================
   static void archiveProduct(BuildContext context, int productId) async {
     try {
       await context.read<ProductsProvider>().archiveProduct(productId);

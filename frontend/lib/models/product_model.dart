@@ -37,6 +37,56 @@ class productModel {
     };
   }
 }
+
+class productPageModel {
+  final int id;
+  final String name;
+  final double price;
+  final int stock;
+  final String? imageUrl;
+  final int? category_id;
+
+  productPageModel({
+    required this.id,
+    required this.name,
+    required this.price,
+    required this.stock,
+    this.imageUrl,
+    this.category_id,
+  });
+
+  // factory productPageModel.fromJson(Map<String, dynamic> json) {
+  //   return productPageModel(
+  //     id: json['id'] ?? 0,
+  //     name: json['name'] ?? '',
+  //     price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
+  //     stock: json['storage_quantity'] ?? 0,
+  //     imageUrl: json['image_url']?.toString(),
+  //     category_id: json['category_id'],
+  //   );
+  // }
+  factory productPageModel.fromProductModel(productModel product) {
+  return productPageModel(
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    stock: product.stock,
+    imageUrl: product.imageUrl,
+    category_id: product.category_id,
+  );
+}
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'price': price,
+      'storage_quantity': stock,
+      'image_url': imageUrl,
+      'category_id': category_id,
+    };
+  }
+}
 // for testing the pagination
 // class ProductResponse {
 //   final List<dynamic> products;

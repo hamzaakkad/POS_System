@@ -6,61 +6,87 @@ import '../services/categories_service.dart';
 
 class ProductsProvider extends ChangeNotifier {
   final productService _service = productService();
+  final productPageService _productPageService = productPageService();
+  final FetchCategorizedProducts _fetchCategorizedProducts =
+      FetchCategorizedProducts();
   final postProductService _postService = postProductService();
   final ArchiveProductService _archiveService = ArchiveProductService();
   final FetchCategoriesService _categoriesService = FetchCategoriesService();
 
-  // Product lists
   final List<productModel> _allProducts = [];
+  final List<productPageModel> _allProductsPageProducts = [];
+
   final List<productModel> _filteredProducts = [];
 
-  // Search and filter states
-  String _searchQuery = '';
-  int? minPrice;
-  int? maxPrice;
-  bool _inStockOnly = false;
-  bool _outOfStockOnly = false;
-  int? _lowStockThreshold;
-  bool _sortByPriceAsc = false;
-  bool _sortByNameAsc = false;
-  int? category_id;
+  final List<productPageModel> _filteredProductsPageProducts = [];
 
-  // Loading and error states
+  String _searchQuery = '';
+  String _pageSearchQuery = '';
+  int? _minPrice;
+  int? _maxPrice;
+  int? _lowStockThreshold;
+  int? _categoryId;
+
   bool _loading = false;
+  bool _pageLoading = false;
   bool _loadingMore = false;
+  bool _pageLoadingMore = false;
   String? _error;
 
-  // Pagination states
-  bool _hasMore = true; // Server-side pagination flag
-  int _currentPage =
-      1; // Client-side pagination for filtered results please engineer dont ask me to make the filtering server side
-  final int _itemsPerPage = 20;
-  int allPages = 1;
-  bool? sortAtoZ = false;
-  bool? sortZtoA = false;
-  bool inStock = false;
-  bool outOfStock = false;
+  bool _hasMore = true;
+  bool _pageHasMore = true;
+  int _currentPage = 1;
+  int _pageCurrentPage = 1;
 
-  // Getters
+  final int _itemsPerPage = 20;
+  bool? _sortAtoZ = false;
+  bool? _sortZtoA = false;
+  bool _inStock = false;
+  bool _outOfStock = false;
+  bool? _sortAtoZPage = false;
+  bool? _sortZtoAPage = false;
+  bool _inStockPage = false;
+  bool _outOfStockPage = false;
+  int? _minPricePage;
+  int? _maxPricePage;
+
   bool get loading => _loading;
+  bool get pageLoading => _pageLoading;
   bool get loadingMore => _loadingMore;
+  bool get pageLoadingMore => _pageLoadingMore;
   String? get error => _error;
   bool get hasMore => _hasMore;
+  bool get pageHasMore => _pageHasMore;
   int get currentPage => _currentPage;
+  int get pageCurrentPage => _pageCurrentPage;
   int get itemsPerPage => _itemsPerPage;
-  bool get inStockOnly => _inStockOnly;
-  bool get outOfStockOnly => _outOfStockOnly;
+  int? get selectedCategoryId => _categoryId;
+  int? get minPrice => _minPrice;
+  int? get maxPrice => _maxPrice;
+  bool? get sortAtoZ => _sortAtoZ;
+  bool? get sortZtoA => _sortZtoA;
+  bool get inStock => _inStock;
+  bool get outOfStock => _outOfStock;
+  bool? get sortAtoZPage => _sortAtoZPage;
+  bool? get sortZtoAPage => _sortZtoAPage;
+  bool get inStockPage => _inStockPage;
+  bool get outOfStockPage => _outOfStockPage;
+  int? get minPricePage => _minPricePage;
+  int? get maxPricePage => _maxPricePage;
 
-  int? get lowStockThreshold => _lowStockThreshold;
-  int? get selectedCategoryId => category_id; //this one caused me bugs
-
-  // Get total pages for filtered results and for the ui flags
   int get totalPages {
     if (_filteredProducts.isEmpty) return 1;
     return (_filteredProducts.length / _itemsPerPage).ceil().clamp(1, 999);
-  } // it didnt work for the ui so imma keep it for the filtered results only
+  }
 
-  // Get products for current page (client-side pagination) now dont tell me delete this i made them work together :)
+  int get pageTotalPages {
+    if (_filteredProductsPageProducts.isEmpty) return 1;
+    return (_filteredProductsPageProducts.length / _itemsPerPage).ceil().clamp(
+      1,
+      999,
+    );
+  }
+
   UnmodifiableListView<productModel> get products {
     final start = (_currentPage - 1) * _itemsPerPage;
     final end = start + _itemsPerPage;
@@ -77,138 +103,270 @@ class ProductsProvider extends ChangeNotifier {
     return UnmodifiableListView(pageItems);
   }
 
-  // Get all filtered products (for reference)
+  UnmodifiableListView<productPageModel> get productsPageProducts {
+    final start = (_pageCurrentPage - 1) * _itemsPerPage;
+    final end = start + _itemsPerPage;
+
+    if (start >= _filteredProductsPageProducts.length) {
+      return UnmodifiableListView([]);
+    }
+
+    final items = _filteredProductsPageProducts.sublist(
+      start,
+      end > _filteredProductsPageProducts.length
+          ? _filteredProductsPageProducts.length
+          : end,
+    );
+
+    return UnmodifiableListView(items);
+  }
+
   UnmodifiableListView<productModel> get allFilteredProducts {
     return UnmodifiableListView(_filteredProducts);
   }
 
-  // === FETCH PRODUCTS ===
-
   Future<void> fetchProducts({
-    // bool? sort_AtoZ,
     String? searchQuery,
-    //int? minPrice, // this works it sends data to the service
-    //int? maxPrice, // so as this
+    bool loadMore = false,
   }) async {
-    _loading = true;
+    if (loadMore) {
+      if (_loadingMore || !_hasMore) return;
+      _loadingMore = true;
+    } else {
+      _loading = true;
+      _currentPage = 1;
+      _allProducts.clear();
+    }
+    if (searchQuery != null) {
+      _searchQuery = searchQuery;
+    }
+
     _error = null;
-    _hasMore = true; // Reset for new fetch
     notifyListeners();
-    // allPages = _allProducts.length.toInt() ~/ 20;
 
     try {
       final fetched = await _service.fetchProducts(
-        category: category_id,
-        inStock: inStock,
-        outOfStock: outOfStock,
-        sort_ZtoA: sortZtoA,
-        sort_AtoZ: sortAtoZ,
-        loadMore: false,
-        searchQuery: searchQuery,
-        minPrice: minPrice,
-        maxPrice: maxPrice,
+        category: _categoryId,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        inStock: _inStock,
+        outOfStock: _outOfStock,
+        sort_ZtoA: _sortZtoA,
+        sort_AtoZ: _sortAtoZ,
+        minPrice: _minPrice,
+        maxPrice: _maxPrice,
+        loadMore: loadMore,
       );
-      // debugPrint(
-      //   "fetchProducts in productprovider recieved minimum price of : $minPrice",
-      // );
-      // debugPrint("sort A to Z in the provider is : $sort_AtoZ in the try block inside fetchProduct void function");
-      _allProducts
-        ..clear()
-        ..addAll(fetched);
 
-      // Check if server has more products change the flag depending on it to true or false and depending on this flag imma stop or keep the function working
+      if (loadMore) {
+        _allProducts.addAll(fetched);
+      } else {
+        _allProducts.clear();
+        _allProducts.addAll(fetched);
+      }
+
       _hasMore = _service.currentCursor != null;
 
       _applySearchAndFilters();
     } catch (e) {
       _error = e.toString();
-      debugPrint('Error fetching productssssssssss: $e');
     } finally {
       _loading = false;
+      _loadingMore = false;
       notifyListeners();
     }
   }
 
-  setMinPrice(int? minimumPrice) async {
-    minPrice = minimumPrice;
-    //_currentPage = 1;
-    resetPagination();
-    debugPrint("set minimum price method recieved : $minimumPrice");
-    // fetchProducts(minPrice = minimumPrice);
-    // await fetchProducts();
-    await refresh();
-    _applySearchAndFilters();
+  Future<void> loadMoreProductsPageProducts() async {
+    if (_pageLoadingMore || !_pageHasMore) return;
+    _pageLoadingMore = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final newProducts = await _productPageService.fetchProducts(
+        category: null,
+        inStock: _inStockPage,
+        outOfStock: _outOfStockPage,
+        sort_ZtoA: _sortZtoAPage,
+        sort_AtoZ: _sortAtoZPage,
+        loadMore: true,
+        searchQuery: _pageSearchQuery.isNotEmpty ? _pageSearchQuery : null,
+        minPrice: _minPricePage,
+        maxPrice: _maxPricePage,
+      );
+
+      for (var item in newProducts) {
+        _allProductsPageProducts.add(productPageModel.fromProductModel(item));
+      }
+
+      _pageHasMore = _productPageService.currentCursor != null;
+
+      _applyPageFilters();
+
+      if (_productPageService.remainingCount == 0) {
+        _pageHasMore = false;
+      }
+    } catch (e) {
+      _error = e.toString();
+      rethrow;
+    } finally {
+      _pageLoadingMore = false;
+      notifyListeners();
+    }
   }
 
-  setMaxPrice(int? maximumPrice) async {
-    maxPrice = maximumPrice;
-    //_currentPage = 1;
-    resetPagination(); // same as calling _currentPage = 1; but thats a more decorated way ;))
-    debugPrint("set MAXIMUM price method recieved : $maximumPrice");
-    // fetchProducts(minPrice = minimumPrice);
-    // await fetchProducts();
-    await refresh(); // why refresh because refresh in its core is just calling fetchProducts so its the same ;) just the rename is for conflict in the code
-    _applySearchAndFilters();
+  Future<void> nextPagePage() async {
+    if (_pageCurrentPage < pageTotalPages) {
+      _pageCurrentPage++;
+      notifyListeners();
+    } else if (_pageCurrentPage == pageTotalPages && _pageHasMore) {
+      await loadMoreProductsPageProducts();
+
+      if (_pageCurrentPage < pageTotalPages) {
+        _pageCurrentPage++;
+        notifyListeners();
+      }
+    }
   }
 
-  setCategory(int? category) {
-    category_id = category;
-    resetPagination();
-    refresh();
+  Future<void> fetchProductsPageProducts({String? searchQuery}) async {
+    _pageLoading = true;
+    _error = null;
+    _pageHasMore = true;
+    _pageCurrentPage = 1;
+    notifyListeners();
+
+    try {
+      _productPageService.currentCursor = null;
+
+      final fetchedData = await _productPageService.fetchProducts(
+        category: null,
+        inStock: _inStockPage,
+        outOfStock: _outOfStockPage,
+        sort_ZtoA: _sortZtoAPage,
+        sort_AtoZ: _sortAtoZPage,
+        loadMore: false,
+        searchQuery: searchQuery,
+        minPrice: _minPricePage,
+        maxPrice: _maxPricePage,
+      );
+
+      _allProductsPageProducts.clear();
+
+      for (var item in fetchedData) {
+        _allProductsPageProducts.add(productPageModel.fromProductModel(item));
+      }
+
+      _pageHasMore = _productPageService.currentCursor != null;
+      _pageSearchQuery = searchQuery ?? '';
+
+      _applyPageFilters();
+    } catch (e) {
+      _error = e.toString();
+      debugPrint('Error fetching Products Page: $e');
+    } finally {
+      _pageLoading = false;
+      notifyListeners();
+    }
   }
 
-  // // Category mapping there is one like it in the pos_dashboard.dart actually there are 2
-  // final Map<String, int?> categoryMapping = {
-  //   'All': null,
-  //   'Electronics': 1,
-  //   'LifeStyle': 2,
-  //   'Art': 3,
-  //   'Food': 4,
-  //   'Snacks': 5,
-  //   'Drinks': 6,
-  // };
+  void _applyPageFilters() {
+    List<productPageModel> result = List.from(_allProductsPageProducts);
 
-  //======= reset pagination method ========= im currently using it with the server side search and filters see pos_dashbord perform search method
+    if (_pageSearchQuery.isNotEmpty) {
+      result = result
+          .where(
+            (p) =>
+                p.name.toLowerCase().contains(_pageSearchQuery.toLowerCase()),
+          )
+          .toList();
+    }
+
+    _filteredProductsPageProducts
+      ..clear()
+      ..addAll(result);
+
+    if (_pageCurrentPage > pageTotalPages) {
+      _pageCurrentPage = pageTotalPages > 0 ? pageTotalPages : 1;
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> setMinPrice(int? minimumPrice) async {
+    _minPrice = minimumPrice;
+    _currentPage = 1;
+    debugPrint("set minimum price method received: $minimumPrice");
+    await fetchProducts();
+  }
+
+  Future<void> setMaxPrice(int? maximumPrice) async {
+    _maxPrice = maximumPrice;
+    _currentPage = 1;
+    debugPrint("set MAXIMUM price method received: $maximumPrice");
+    await fetchProducts();
+  }
+
+  // void setCategory(int? id) {
+  //   _categoryId = id;
+  //   _currentPage = 1;
+  //   _searchQuery = '';
+  //   _sortAtoZ = false;
+  //   _sortZtoA = false;
+  //   _inStock = false;
+  //   _outOfStock = false;
+  //   _minPrice = null;
+  //   _maxPrice = null;
+  //   fetchProducts();
+  // }
+  void setCategory(int? id) {
+    _categoryId = id;
+    _currentPage = 1;
+    _searchQuery = '';
+    _sortAtoZ = false;
+    _sortZtoA = false;
+    _inStock = false;
+    _outOfStock = false;
+    _minPrice = null;
+    _maxPrice = null;
+    fetchProducts();
+  }
+
   resetPagination() {
     _currentPage = 1;
   }
 
-  // === LOAD MORE PRODUCTS (Server-side) ===
-  // this was terrifieng
+  void resetPagePagination() {
+    _pageCurrentPage = 1;
+  }
+
   Future<void> loadMoreProducts() async {
     if (_loadingMore || !_hasMore) return;
-    // allPages = products.length.toInt() ~/ 20; // this didnt work so its useless rn imma keep it for the next cleanUP^
     _loadingMore = true;
     _error = null;
     notifyListeners();
     try {
       final newProducts = await _service.fetchProducts(
-        category: category_id,
-        sort_ZtoA: sortZtoA,
-        sort_AtoZ: sortAtoZ,
+        category: _categoryId,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+        inStock: _inStock,
+        outOfStock: _outOfStock,
+        sort_ZtoA: _sortZtoA,
+        sort_AtoZ: _sortAtoZ,
+        minPrice: _minPrice,
+        maxPrice: _maxPrice,
         loadMore: true,
-        minPrice: minPrice, //this bug was easier that i thought to fix
-        maxPrice: maxPrice, // ya it was :)
       );
 
-      // Append new products to existing list
       _allProducts.addAll(newProducts);
-
-      // Update hasMore flag for the same reasons ive mentioned earlier
       _hasMore = _service.currentCursor != null;
-
-      // Re-apply filters to include new products please for the third time engineer dont ask me to make the filters server based
 
       _applySearchAndFilters();
       if (_service.remainingCount == 0) {
         _hasMore = false;
       }
-      debugPrint(
-        'Loaded ${newProducts.length} more products. Total: ${_allProducts.length}, Has more: $_hasMore, remaining Count is : ${_service.remainingCount}',
-      );
     } catch (e) {
       _error = e.toString();
-      debugPrint('Error loading more products: $e');
       rethrow;
     } finally {
       _loadingMore = false;
@@ -216,16 +374,16 @@ class ProductsProvider extends ChangeNotifier {
     }
   }
 
-  // === REFRESH ===
-  Future<void> refresh() => fetchProducts(); // cool rename
+  Future<void> refresh() => fetchProducts();
+  Future<void> refreshCategories() => _categoriesService.fetchCategories();
+  Future<void> refreshCategorizedProducts() => fetchProducts();
 
-  // === POST PRODUCT ===
   Future<void> postProduct(productModel product) async {
     _loading = true;
     notifyListeners();
     try {
       await _postService.postProduct(product);
-      await fetchProducts(); // Refresh the list
+      await fetchProducts();
     } catch (e) {
       _error = e.toString();
       _loading = false;
@@ -234,15 +392,15 @@ class ProductsProvider extends ChangeNotifier {
     }
   }
 
-  // === ARCHIVE PRODUCT ===
   Future<void> archiveProduct(int id) async {
     try {
       await _archiveService.archiveProduct(id);
 
-      // Remove from both lists
       _allProducts.removeWhere((p) => p.id == id);
-      //while i think removing it only from _filteredProducts is enough but i dont wanna have some bugs and so
       _filteredProducts.removeWhere((p) => p.id == id);
+
+      _allProductsPageProducts.removeWhere((p) => p.id == id);
+      _filteredProductsPageProducts.removeWhere((p) => p.id == id);
 
       notifyListeners();
     } catch (e) {
@@ -252,40 +410,76 @@ class ProductsProvider extends ChangeNotifier {
     }
   }
 
-  // === SEARCH AND FILTERS ===
-  void searchProducts(String query) {
-    _searchQuery = query.toLowerCase();
-    _currentPage = 1; // Reset to first page on search
-    _applySearchAndFilters();
-  }
-
   void setSearchQuery(String value) {
     _searchQuery = value;
     _currentPage = 1;
-    _applySearchAndFilters();
+    fetchProducts();
   }
 
   void setInStockOnly(bool value) {
-    resetPagination();
-    // _inStockOnly = value;
-    // _outOfStockOnly = false; // Mutual exclusion cool in the ui
-    inStock = value; // for the backend
-    outOfStock = false; // for the backend
-    refresh();
-    _applySearchAndFilters();
+    _currentPage = 1;
+    _inStock = value;
+    _outOfStock = false;
+    fetchProducts();
   }
 
   void setOutOfStockOnly(bool value) {
-    // _currentPage = 1;
-    resetPagination();
+    _currentPage = 1;
+    _outOfStock = value;
+    _inStock = false;
+    fetchProducts();
+  }
 
-    // _outOfStockOnly = value;
-    // _inStockOnly =
-    //     false; // Mutual exclusion looks amazing in the ui material.dart its an amazing library for customization
-    outOfStock = value; // for the backend
-    inStock = false; // for the backend
-    refresh();
-    _applySearchAndFilters();
+  void setPageInStockOnly(bool value) {
+    _inStockPage = value;
+    _outOfStockPage = false;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
+  }
+
+  void setPageOutOfStockOnly(bool value) {
+    _outOfStockPage = value;
+    _inStockPage = false;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
+  }
+
+  void setPageSortByName(bool value) {
+    _sortAtoZPage = value;
+    _sortZtoAPage = false;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
+  }
+
+  void setPageSortByNameDESC(bool value) {
+    _sortZtoAPage = value;
+    _sortAtoZPage = false;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
+  }
+
+  void setPageMinPrice(int? value) {
+    _minPricePage = value;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
+  }
+
+  void setPageMaxPrice(int? value) {
+    _maxPricePage = value;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
+  }
+
+  void resetPageFilters() {
+    _pageSearchQuery = '';
+    _sortAtoZPage = false;
+    _sortZtoAPage = false;
+    _inStockPage = false;
+    _outOfStockPage = false;
+    _minPricePage = null;
+    _maxPricePage = null;
+    _pageCurrentPage = 1;
+    fetchProductsPageProducts();
   }
 
   void setLowStockThreshold(int? value) {
@@ -296,110 +490,59 @@ class ProductsProvider extends ChangeNotifier {
 
   void sortByPrice(bool ascending) {
     _currentPage = 1;
-    _sortByPriceAsc = ascending;
-    _sortByNameAsc = false;
     _applySearchAndFilters();
   }
 
   void sortByName(bool ascending) {
     _currentPage = 1;
-    // _sortByNameAsc = ascending;
-    sortAtoZ = true;
-    sortZtoA = false;
-
-    _sortByPriceAsc = false;
-    refresh();
-    _applySearchAndFilters();
+    _sortAtoZ = true;
+    _sortZtoA = false;
+    fetchProducts();
   }
 
   void sortByNameDESC(bool descending) {
     _currentPage = 1;
-    // _sortByNameAsc = ascending;
-    sortAtoZ = false;
-    sortZtoA = true;
-
-    _sortByPriceAsc = false;
-    refresh();
-    _applySearchAndFilters();
+    _sortAtoZ = false;
+    _sortZtoA = true;
+    fetchProducts();
   }
 
   void resetFilters() {
     _currentPage = 1;
     _searchQuery = '';
-    minPrice = null;
-    maxPrice = null;
-    _inStockOnly = false;
-    _outOfStockOnly = false;
-    _lowStockThreshold = null;
-    _sortByPriceAsc = false;
-    _sortByNameAsc = false;
-    sortAtoZ = false;
-    sortZtoA = false;
-    inStock = false;
-    outOfStock = false;
-    category_id = null;
-
-    refresh();
-    _applySearchAndFilters();
+    _minPrice = null;
+    _maxPrice = null;
+    _sortAtoZ = false;
+    _sortZtoA = false;
+    _inStock = false;
+    _outOfStock = false;
+    _categoryId = null;
+    fetchProducts();
   }
 
-  // === APPLY SEARCH AND FILTERS ===
   void _applySearchAndFilters() {
-    List<productModel> result = List.from(_allProducts);
+    Iterable<productModel> result = List.from(_allProducts);
 
-    //SEARCH
     if (_searchQuery.isNotEmpty) {
-      result = result
-          .where((p) => p.name.toLowerCase().contains(_searchQuery))
-          .toList();
+      result = result.where(
+        (p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()),
+      );
     }
 
-    // FILTERS
-    if (_inStockOnly) {
-      result = result.where((p) => p.stock > 0).toList();
-    }
+    _filteredProducts.clear();
+    _filteredProducts.addAll(result);
 
-    if (_outOfStockOnly) {
-      result = result.where((p) => p.stock == 0).toList();
-    }
-
-    if (_lowStockThreshold != null) {
-      result = result
-          .where((p) => p.stock > 0 && p.stock <= _lowStockThreshold!)
-          .toList();
-    }
-
-    // SORT
-    if (_sortByPriceAsc) {
-      result.sort((a, b) => a.price.compareTo(b.price));
-    } else if (_sortByNameAsc) {
-      result.sort((a, b) => a.name.compareTo(b.name));
-    }
-
-    // Update filtered list
-    _filteredProducts
-      ..clear()
-      ..addAll(result);
-
-    // Ensure current page is valid
-    if (_currentPage > totalPages) {
-      _currentPage = totalPages > 0 ? totalPages : 1;
-    }
+    if (_currentPage > totalPages) _currentPage = totalPages;
 
     notifyListeners();
   }
 
-  // === PAGINATION METHODS (Client-side for filtered results) ===
   Future<void> nextPage() async {
     if (_currentPage < totalPages) {
-      // Regular pagination within filtered results i dont have to mention anything mrs.engineer please dont make me make this server based
       _currentPage++;
       notifyListeners();
     } else if (_currentPage == totalPages && _hasMore) {
-      // We're at the end of filtered results but server has more
       await loadMoreProducts();
-
-      // After loading more, check if we can go to next page
       if (_currentPage < totalPages) {
         _currentPage++;
         notifyListeners();
@@ -414,16 +557,20 @@ class ProductsProvider extends ChangeNotifier {
     }
   }
 
-  void goToPage(int page) {
-    if (page >= 1 && page <= totalPages) {
-      _currentPage = page;
-      // setMinPrice();
-      // setMaxPrice();
+  void previousPagePage() {
+    if (_pageCurrentPage > 1) {
+      _pageCurrentPage--;
       notifyListeners();
     }
   }
 
-  // === UTILITY METHODS ===
+  void goToPage(int page) {
+    if (page >= 1 && page <= totalPages) {
+      _currentPage = page;
+      notifyListeners();
+    }
+  }
+
   int get totalProductsCount => _allProducts.length;
   int get filteredProductsCount => _filteredProducts.length;
 

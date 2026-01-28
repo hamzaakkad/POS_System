@@ -16,7 +16,7 @@ class FetchCategoriesService {
 
       return data.map((e) => CategoriesModel.fromJson(e)).toList();
     } else {
-      throw Exception('Failed to load Categroies');
+      throw Exception('Failed to load Categroies: ${response.statusCode}');
     }
   }
 }
@@ -37,7 +37,7 @@ class PostCategoryService {
     if (response.statusCode == 200 || response.statusCode == 201) {
       debugPrint("Category Created Succesfully");
     } else {
-      debugPrint("Error ${response.statusCode} while creating the category");
+      debugPrint("Error ${response.statusCode} while creating the category: ${response.body}");
     }
   }
 }
@@ -45,16 +45,46 @@ class PostCategoryService {
 class DeleteCategoryService {
   final String baseUrl = 'http://127.0.0.1:5000/api';
   Future<void> deleteCategory(int? category_id) async {
-    final response = await http.delete(
-      Uri.parse(
-        "$baseUrl/categories/delete/$category_id",
-      ), //there were 2 small errors here that i repeat everythime and they drove me crazy
-    );
+    try {
+      final response = await http.delete(
+        Uri.parse("$baseUrl/categories/delete/$category_id"),
+      );
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      debugPrint("Category Deleted Succesfully");
-    } else {
-      debugPrint("Error ${response.statusCode} while deleting the category");
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint("Category Deleted Successfully");
+      } else {
+        throw Exception("Failed to delete: ${response.body}");
+      }
+    } catch (e) {
+      debugPrint("Catch block caught in delete category service: $e");
+      rethrow;
+    }
+  }
+}
+
+class EditCategoriesService {
+  final String baseUrl = 'http://127.0.0.1:5000/api';
+  Future<void> EditCategory(int? category_id, String name) async {
+    try {
+      final response = await http.put(
+        Uri.parse("$baseUrl/categories/edit/$category_id"),
+        headers: <String, String> {
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+
+        body: jsonEncode(<String, dynamic> {
+          "name": name
+        })
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint("Category Edited Successfully , new name: $name");
+      } else {
+        throw Exception("Failed to edit category: ${response.body}");
+      }
+    } catch (e) {
+      debugPrint("Catch block caught in delete category service: $e");
+      rethrow;
     }
   }
 }

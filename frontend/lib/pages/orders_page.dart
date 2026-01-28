@@ -41,7 +41,8 @@ class _OrdersPageState extends State<OrdersPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
-            final screenHeight = constraints.maxHeight;//imma keep it for later flexibal resizing options
+            final screenHeight = constraints
+                .maxHeight; //imma keep it for later flexibal resizing options
 
             return SafeArea(
               child: Padding(
@@ -78,45 +79,46 @@ class _OrdersPageState extends State<OrdersPage> {
                             letterSpacing: 1.2,
                           ),
                         ),
-                        Row(
-                          children: [
-                            // Theme toggle button to match dashboard
-                            IconButton(
-                              icon: Icon(
-                                isDark ? Icons.light_mode : Icons.dark_mode,
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : AppColors.lightTextPrimary,
-                              ),
-                              onPressed: () =>
-                                  context.read<ThemeProvider>().toggleTheme(),
-                            ),
-                            SizedBox(width: screenWidth > 800 ? 12 : 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.darkBgElevated
-                                    : AppColors.lightBgSurface,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isDark
-                                      ? AppColors.borderSubtle
-                                      : Colors.grey.shade300,
-                                ),
-                              ),
-                              child: IconButton(
-                                icon: Icon(
-                                  Icons.refresh,
-                                  color: isDark
-                                      ? AppColors.darkTextSecondary
-                                      : AppColors.lightTextPrimary,
-                                ),
-                                onPressed: _refresh,
-                                tooltip: 'Refresh',
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Row(
+                        //   children: [
+                        //     // Theme toggle button to match dashboard
+                        //     IconButton(
+                        //       icon: Icon(
+                        //         isDark ? Icons.light_mode : Icons.dark_mode,
+                        //         color: isDark
+                        //             ? AppColors.darkTextSecondary
+                        //             : AppColors.lightTextPrimary,
+                        //       ),
+                        //       onPressed: () =>
+                        //           context.read<ThemeProvider>().toggleTheme(),
+                        //     ),
+                        //     SizedBox(width: screenWidth > 800 ? 12 : 8),
+                        //     Container(
+                        //       decoration: BoxDecoration(
+                        //         color: isDark
+                        //             ? AppColors.darkBgElevated
+                        //             : AppColors.lightBgSurface,
+                        //         borderRadius: BorderRadius.circular(8),
+                        //         border: Border.all(
+                        //           color: isDark
+                        //               ? AppColors.borderSubtle
+                        //               : Colors.grey.shade300,
+                        //         ),
+                        //       ),
+                        //       child: IconButton(
+                        //         icon: Icon(
+                        //           Icons.refresh,
+                        //           color: isDark
+                        //               ? AppColors.darkTextSecondary
+                        //               : AppColors.lightTextPrimary,
+                        //         ),
+                        //         onPressed: _refresh,
+                        //         tooltip: 'Refresh',
+                        //       ),
+                        //     ),
+                        //   ],
+                        // ),
+                        SizedBox(width: 48),
                       ],
                     ),
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pos_system/providers/cart_provider.dart';
 import 'package:pos_system/providers/categories_provider.dart';
 import 'package:pos_system/providers/orders_provider.dart';
+import 'package:pos_system/providers/account_provider.dart';
 import 'package:provider/provider.dart';
 import '/pages/pos_dashboard.dart';
 import 'package:http/http.dart' as http;
@@ -22,6 +23,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => OrdersProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => CategoriesProvider()),
+        ChangeNotifierProvider(create: (_) => AccountProvider()),
       ],
       child: MyApp(),
     ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:pos_system/providers/categories_provider.dart';
+import 'package:pos_system/providers/product_provider.dart';
 import 'package:provider/provider.dart';
 import '../models/categories_model.dart';
 import '../services/categories_service.dart';
@@ -16,29 +18,48 @@ class _CategoriesPageState extends State<CategoriesPage> {
   final FetchCategoriesService _fetchService = FetchCategoriesService();
   final PostCategoryService _postService = PostCategoryService();
   final DeleteCategoryService _deleteService = DeleteCategoryService();
-
+  final EditCategoriesService _editCategoriesService = EditCategoriesService();
   List<CategoriesModel> _categories = [];
   bool _isLoading = true;
   final TextEditingController _addController = TextEditingController();
-
+  final editCategoryNameController = TextEditingController();
   @override
   void initState() {
     super.initState();
-    _refreshCategories();
+    refreshCategories();
   }
 
-  Future<void> _refreshCategories() async {
-    setState(() => _isLoading = true);
-    try {
-      final data = await _fetchService.fetchCategories();
-      setState(() => _categories = data);
-    } catch (e) {
-      debugPrint("Error: $e");
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  Future<void> refreshCategories() async {
+    await context.read<CategoriesProvider>().loadCategories();
+    setState(() {
+      _categories = context.read<CategoriesProvider>().categories;
+      _isLoading = context.read<CategoriesProvider>().isLoading;
+    });
   }
 
+  // Future<void> _refreshCategories() async {
+  //   setState(() => _isLoading = true);
+  //   try {
+  //     final data = _fetchService.fetchCategories();
+  //     setState(() => _categories = data);
+  //   } catch (e) {
+  //     debugPrint("Error: $e");
+  //   } finally {
+  //     setState(() => _isLoading = false);
+  //   }
+  // }
+  @override
+  void dospose() {
+    editCategoryNameController.dispose();
+    super.dispose();
+  }
+
+  // make the ui clear the editr product name controller by dipose() idk what was its name see it
+  //DONE
+  // make the edit category dialog look like archive product dialog and delete order dialog and unite all dialogs to that same design
+  //DONE
+  // make it widget but later
+  //MAYBE FOR LATER REFACTORATION
   @override
   Widget build(BuildContext context) {
     final isDark = context.watch<ThemeProvider>().isDark;
@@ -130,7 +151,11 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 ? AppColors.darkTextSecondary
                 : AppColors.lightTextPrimary,
           ),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () async {
+            // await context.read<CategoriesProvider>().loadCategories();
+            //await context.read<ProductsProvider>().refresh();
+            Navigator.pop(context);
+          },
         ),
         Text(
           'CATEGORIES',
@@ -143,15 +168,16 @@ class _CategoriesPageState extends State<CategoriesPage> {
             letterSpacing: 1.2,
           ),
         ),
-        IconButton(
-          icon: Icon(
-            Icons.refresh,
-            color: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.lightTextPrimary,
-          ),
-          onPressed: _refreshCategories,
-        ),
+        // IconButton(
+        //   icon: Icon(
+        //     Icons.refresh,
+        //     color: isDark
+        //         ? AppColors.darkTextSecondary
+        //         : AppColors.lightTextPrimary,
+        //   ),
+        //   onPressed: refreshCategories,
+        // ),
+        SizedBox(width: 48),
       ],
     );
   }
@@ -185,11 +211,13 @@ class _CategoriesPageState extends State<CategoriesPage> {
           ElevatedButton.icon(
             onPressed: () async {
               if (_addController.text.isNotEmpty) {
-                await _postService.postCategory(
+                // await _postService.postCategory(
+                //   CategoriesModel(name: _addController.text),
+                await context.read<CategoriesProvider>().addCategory(
                   CategoriesModel(name: _addController.text),
                 );
                 _addController.clear();
-                _refreshCategories();
+                refreshCategories();
               }
             },
             style: ElevatedButton.styleFrom(
@@ -272,6 +300,13 @@ class _CategoriesPageState extends State<CategoriesPage> {
                 child: Text(cat.name, style: _rowStyle(isDark, bold: true)),
               ),
               IconButton(
+                icon: Icon(Icons.edit_outlined, color: Colors.yellow.shade200),
+                onPressed: () {
+                  _editCategory(cat.id);
+                  //_editCategoriesService.EditCategory(cat.id, "Apple");
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 onPressed: () => _confirmDelete(cat),
               ),
@@ -295,9 +330,41 @@ class _CategoriesPageState extends State<CategoriesPage> {
           ),
           TextButton(
             onPressed: () async {
-              await _deleteService.deleteCategory(cat.id);
-              Navigator.pop(context);
-              _refreshCategories();
+              try {
+                // 1. Await the delete operation
+                // await context.read<CategoriesProvider>().deleteCategory(cat.id);//this was the errors root idk why it didnt recieve the errors from the service to display it to the user
+
+                await _deleteService.deleteCategory(cat.id);
+                // Check if the widget is still in the tree
+                if (!context.mounted) return;
+
+                // Close the dialog
+                Navigator.pop(context);
+
+                // Refresh data
+                refreshCategories();
+
+                //Show success snackbar
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Successfully deleted category ${cat.name}"),
+                    backgroundColor: Colors.green.shade400,
+                  ),
+                );
+              } catch (e) {
+                // Close the dialog
+                if (context.mounted) Navigator.pop(context);
+
+                // Show error snackbar
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "Error while deleting the category try again later\nif the category has item's inside of it you cant delete it.",
+                    ), //Text("Error: $e"),
+                    backgroundColor: Colors.red.shade400,
+                  ),
+                );
+              }
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
           ),
@@ -306,6 +373,208 @@ class _CategoriesPageState extends State<CategoriesPage> {
     );
   }
 
+  void _editCategory(int? categoryId) {
+    final isDark = context.read<ThemeProvider>().isDark;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: isDark
+              ? AppColors.darkBgElevated
+              : AppColors.lightBgElevated,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edit Category',
+                  style: TextStyle(
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.lightTextPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: editCategoryNameController,
+                  decoration: InputDecoration(
+                    hintText: "Category name",
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? AppColors.darkBgElevated
+                        : AppColors.lightBgElevated,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        side: BorderSide(
+                          color: isDark
+                              ? AppColors.borderSubtle
+                              : Colors.grey.shade400,
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        try {
+                          // Attempt to edit the category
+                          await _editCategoriesService.EditCategory(
+                            categoryId,
+                            editCategoryNameController.text.trim(),
+                          );
+
+                          // Check if widget is still mounted
+                          if (!context.mounted) return;
+
+                          // Close dialog and refresh
+                          Navigator.of(context).pop();
+                          refreshCategories();
+
+                          // Show success message
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                "Category updated successfully",
+                              ),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          );
+                        } catch (error) {
+                          // Close dialog first
+                          if (context.mounted) Navigator.of(context).pop();
+
+                          // Show error message
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                "Error updating category. Please try again.",
+                              ),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        // backgroundColor: Colors.blue,
+                        backgroundColor: isDark
+                            ? AppColors.darkButtonsPrimary
+                            : AppColors.accentBlue,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    editCategoryNameController.clear();
+  }
+  // void _editCategory(int? category_id) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text("Edit Category"),
+  //       content: TextField(controller: editCategoryNameController,),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: const Text("Cancel"),
+  //         ),
+  //         TextButton(
+  //           onPressed: () async {
+  //             try {
+  //               // 1. Await the delete operation
+  //               // await context.read<CategoriesProvider>().deleteCategory(cat.id);//this was the errors root idk why it didnt recieve the errors from the service to display it to the user
+
+  //               await _editCategoriesService.EditCategory(
+  //                 category_id,
+  //                 editCategoryNameController.toString(),
+  //               );
+  //               // Check if the widget is still in the treew
+  //               if (!context.mounted) return;
+
+  //               // Close the dialog
+  //               Navigator.pop(context);
+
+  //               // Refresh data
+  //               refreshCategories();
+
+  //               //Show success snackbar
+  //               // ScaffoldMessenger.of(context).showSnackBar(
+  //               //   SnackBar(
+  //               //     content: Text("Successfully deleted category ${cat.name}"),
+  //               //     backgroundColor: Colors.green.shade400,
+  //               //   ),
+  //               // );
+  //             } catch (e) {
+  //               // Close the dialog
+  //               if (context.mounted) Navigator.pop(context);
+
+  //               // Show error snackbar
+  //               ScaffoldMessenger.of(context).showSnackBar(
+  //                 SnackBar(
+  //                   content: Text(
+  //                     "Error while deleting the category try again later\nif the category has item's inside of it you cant delete it.",
+  //                   ), //Text("Error: $e"),
+  //                   backgroundColor: Colors.red.shade400,
+  //                 ),
+  //               );
+  //             }
+  //           },
+  //           child: const Text("Delete", style: TextStyle(color: Colors.red)),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // Work ksdv
   TextStyle _rowStyle(bool isDark, {bool bold = false}) => TextStyle(
     color: isDark ? AppColors.darkTextPrimary : Colors.black87,
     fontWeight: bold ? FontWeight.bold : FontWeight.normal,

@@ -27,4 +27,31 @@ class CategoriesProvider with ChangeNotifier {
       notifyListeners(); // Notify UI to show data or error
     }
   }
+
+  Future<void> deleteCategory(int? category_id) async {
+    final DeleteCategoryService _deleteService = DeleteCategoryService();
+    try {
+      await _deleteService.deleteCategory(category_id);
+      // Refresh categories after deletion
+      await loadCategories();
+
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+
+  }
+  
+
+  Future<void> addCategory(CategoriesModel category) async {
+    try {
+      final PostCategoryService _postService = PostCategoryService();
+      await _postService.postCategory(category);
+      // Refresh categories after adding a new one
+      await loadCategories();
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
 }

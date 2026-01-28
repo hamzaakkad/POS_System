@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:pos_system/reusable%20widgets/EditProductDialogWidget.dart';
 import 'package:pos_system/reusable%20widgets/Productdialogwidget.dart';
 import 'package:provider/provider.dart';
 import '../models/product_model.dart';
@@ -24,7 +25,7 @@ class ProductsPageState extends State<ProductsPage> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      context.read<ProductsProvider>().fetchProducts();
+      context.read<ProductsProvider>().fetchProductsPageProducts();
     });
   }
 
@@ -40,8 +41,8 @@ class ProductsPageState extends State<ProductsPage> {
     final query = searchQueryController.text.trim();
     final provider = context.read<ProductsProvider>();
     try {
-      provider.resetPagination();
-      await provider.fetchProducts(
+      provider.resetPagePagination();
+      await provider.fetchProductsPageProducts(
         searchQuery: query.isNotEmpty ? query : null,
       );
       if (mounted) FocusScope.of(context).unfocus();
@@ -80,7 +81,6 @@ class ProductsPageState extends State<ProductsPage> {
                     _buildHeader(screenWidth, isDark, provider),
                     const SizedBox(height: 24),
 
-                    /// PRODUCT MANAGEMENT BOX (Matching Categories Design)
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -105,7 +105,7 @@ class ProductsPageState extends State<ProductsPage> {
                         ),
                         child: Column(
                           children: [
-                            _buildSearchSection(isDark, screenWidth),
+                            _buildSearchSection(isDark, screenWidth, provider),
                             _tableHeader(screenWidth, isDark),
                             Container(
                               height: 1,
@@ -150,7 +150,9 @@ class ProductsPageState extends State<ProductsPage> {
                 ? AppColors.darkTextSecondary
                 : AppColors.lightTextPrimary,
           ),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            Navigator.pop(context);
+          },
         ),
         Text(
           'PRODUCTS',
@@ -163,20 +165,25 @@ class ProductsPageState extends State<ProductsPage> {
             letterSpacing: 1.2,
           ),
         ),
-        IconButton(
-          icon: Icon(
-            Icons.refresh,
-            color: isDark
-                ? AppColors.darkTextSecondary
-                : AppColors.lightTextPrimary,
-          ),
-          onPressed: () => provider.refresh(),
+        Row(
+          children: [
+            IconButton(
+              icon: Icon(
+                Icons.filter_list,
+                color: isDark ? AppColors.darkButtonsPrimary : AppColors.accentBlue,
+              ),
+              onPressed: () {
+                _openFiltersSheet(context);
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildSearchSection(bool isDark, double screenWidth) {
+  Widget _buildSearchSection(bool isDark, double screenWidth, ProductsProvider provider) {
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Row(
@@ -274,9 +281,9 @@ class ProductsPageState extends State<ProductsPage> {
             screenWidth: screenWidth,
             isDark: isDark,
           ),
-          const SizedBox(width: 96), // Space for icons
+          const SizedBox(width: 96),
         ],
-      ),
+      )
     );
   }
 
@@ -285,12 +292,13 @@ class ProductsPageState extends State<ProductsPage> {
     bool isDark,
     double screenWidth,
   ) {
-    if (provider.loading && provider.products.isEmpty) {
+    if (provider.pageLoading && provider.productsPageProducts.isEmpty) {
       return Center(
         child: CircularProgressIndicator(color: AppColors.accentBlue),
       );
     }
-    if (provider.products.isEmpty) {
+
+    if (provider.productsPageProducts.isEmpty) {
       return Center(
         child: Text(
           "No products found.",
@@ -301,9 +309,9 @@ class ProductsPageState extends State<ProductsPage> {
 
     return ListView.builder(
       controller: _scrollController,
-      itemCount: provider.products.length,
+      itemCount: provider.productsPageProducts.length,
       itemBuilder: (context, index) {
-        final product = provider.products[index];
+        final product = provider.productsPageProducts[index];
         final expanded = _expandedProducts.contains(product.id);
 
         return Column(
@@ -317,7 +325,7 @@ class ProductsPageState extends State<ProductsPage> {
   }
 
   Widget _productRow(
-    productModel product,
+    productPageModel product,
     bool expanded,
     double screenWidth,
     bool isDark,
@@ -364,6 +372,16 @@ class ProductsPageState extends State<ProductsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
+                icon: Icon(Icons.edit_outlined, color: Colors.yellow.shade200),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) =>
+                        EditProductDialogWidget(product: product.toJson()),
+                  );
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                 onPressed: () =>
                     context.read<ProductsProvider>().archiveProduct(product.id),
@@ -382,11 +400,11 @@ class ProductsPageState extends State<ProductsPage> {
             ],
           ),
         ],
-      ),
+      )
     );
   }
 
-  Widget _productDetails(productModel product, bool isDark) {
+  Widget _productDetails(productPageModel product, bool isDark) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -420,21 +438,36 @@ class ProductsPageState extends State<ProductsPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text("Page ${provider.currentPage}", style: _rowStyle(isDark)),
+          Text("Page ${provider.pageCurrentPage}", style: _rowStyle(isDark)),
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
-                onPressed: provider.currentPage > 1
-                    ? () => provider.previousPage()
+                onPressed: provider.pageCurrentPage > 1
+                    ? () => provider.previousPagePage()
                     : null,
               ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: (provider.hasMore)
-                    ? () => provider.nextPage()
-                    : null,
-              ),
+              if (provider.pageLoadingMore)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: AppColors.accentBlue,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed:
+                      (provider.pageHasMore ||
+                          provider.pageCurrentPage < provider.pageTotalPages)
+                      ? () => provider.nextPagePage()
+                      : null,
+                ),
             ],
           ),
         ],
@@ -447,6 +480,290 @@ class ProductsPageState extends State<ProductsPage> {
     fontWeight: bold ? FontWeight.bold : FontWeight.normal,
     fontSize: 15,
   );
+
+  void _openFiltersSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final provider = context.read<ProductsProvider>();
+        
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              margin: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: context.watch<ThemeProvider>().isDark
+                    ? AppColors.darkBgElevated
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Filters',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: context.watch<ThemeProvider>().isDark
+                                ? AppColors.darkTextPrimary
+                                : Colors.black,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    _buildFilterSection(
+                      'Stock Status',
+                      [
+                        _buildFilterOption(
+                          'In Stock Only',
+                          provider.inStockPage,
+                          (value) {
+                            setModalState(() {
+                              provider.setPageInStockOnly(value);
+                            });
+                          },
+                          context,
+                        ),
+                        _buildFilterOption(
+                          'Out of Stock Only',
+                          provider.outOfStockPage,
+                          (value) {
+                            setModalState(() {
+                              provider.setPageOutOfStockOnly(value);
+                            });
+                          },
+                          context,
+                        ),
+                      ],
+                      context,
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildFilterSection(
+                      'Sort By',
+                      [
+                        _buildFilterOption(
+                          'A to Z',
+                          provider.sortAtoZPage == true,
+                          (value) {
+                            setModalState(() {
+                              provider.setPageSortByName(value);
+                            });
+                          },
+                          context,
+                        ),
+                        _buildFilterOption(
+                          'Z to A',
+                          provider.sortZtoAPage == true,
+                          (value) {
+                            setModalState(() {
+                              provider.setPageSortByNameDESC(value);
+                            });
+                          },
+                          context,
+                        ),
+                      ],
+                      context,
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    _buildPriceRangeFilter(provider, setModalState, context),
+                    
+                    const SizedBox(height: 30),
+                    
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              provider.resetPageFilters();
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: context.watch<ThemeProvider>().isDark
+                                  ? AppColors.danger
+                                  : Colors.red.shade500,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Reset Filters',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              provider.fetchProductsPageProducts();
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: context.watch<ThemeProvider>().isDark
+                                  ? AppColors.darkButtonsPrimary
+                                  : AppColors.accentBlue,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Apply Filters',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterSection(
+    String title,
+    List<Widget> options,
+    BuildContext context,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: context.watch<ThemeProvider>().isDark
+                ? AppColors.darkTextSecondary
+                : Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...options,
+      ],
+    );
+  }
+
+  Widget _buildFilterOption(
+    String label,
+    bool value,
+    Function(bool) onChanged,
+    BuildContext context,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Checkbox(
+            value: value,
+            onChanged: (newValue) => onChanged(newValue ?? false),
+            activeColor: context.watch<ThemeProvider>().isDark
+                ? AppColors.darkButtonsPrimary
+                : AppColors.accentBlue,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: context.watch<ThemeProvider>().isDark
+                  ? AppColors.darkTextPrimary
+                  : Colors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceRangeFilter(
+    ProductsProvider provider,
+    StateSetter setModalState,
+    BuildContext context,
+  ) {
+    final minController = TextEditingController(text: provider.minPricePage?.toString() ?? '');
+    final maxController = TextEditingController(text: provider.maxPricePage?.toString() ?? '');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Price Range',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: context.watch<ThemeProvider>().isDark
+                ? AppColors.darkTextSecondary
+                : Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: minController,
+                decoration: InputDecoration(
+                  labelText: 'Min Price',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  setModalState(() {
+                    provider.setPageMinPrice(value.isEmpty ? null : int.tryParse(value));
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: maxController,
+                decoration: InputDecoration(
+                  labelText: 'Max Price',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  setModalState(() {
+                    provider.setPageMaxPrice(value.isEmpty ? null : int.tryParse(value));
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _HeaderText extends StatelessWidget {
