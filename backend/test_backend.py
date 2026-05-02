@@ -55,6 +55,21 @@ def run_tests():
         }
         test_endpoint('POST', '/orders', new_order)
 
+    # 6. Test admin page permission endpoints
+    # fetch existing permissions to use one id
+    resp = test_endpoint('GET', '/admin/permissions')
+    perm_id = None
+    if resp and resp.status_code == 200:
+        perms = resp.json().get('permissions', [])
+        if perms:
+            perm_id = perms[0].get('id')
+    # perform mapping if we have an id
+    if perm_id is not None:
+        test_endpoint('GET', '/admin/page-permissions')
+        mapping = {'admin_id': 1, 'page_key': 'payments', 'permission_id': perm_id}
+        test_endpoint('PUT', '/admin/page-permissions', mapping)
+        test_endpoint('GET', '/admin/page-permissions')
+
     print(f"\n{'='*60}")
     print("✅ All tests completed!")
 

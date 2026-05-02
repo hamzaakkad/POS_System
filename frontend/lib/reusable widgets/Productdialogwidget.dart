@@ -3,9 +3,9 @@ import 'package:pos_system/providers/product_provider.dart';
 import 'package:pos_system/providers/categories_provider.dart';
 import 'package:pos_system/providers/theme_provider.dart';
 import 'package:pos_system/reusable%20widgets/AppColors.dart';
+import 'package:pos_system/reusable%20widgets/UiWidgets.dart';
 import 'package:provider/provider.dart';
 import '../services/product_service.dart';
-import '../pages/pos_dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -30,10 +30,6 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
   final Set<int> _selectedCategoryIds = {};
 
   final List<Color> _shuffledColors = [
-    // Colors.blue.shade400,
-    // Colors.purple.shade400,
-    // Colors.orange.shade400,
-    // Colors.green.shade400,
     Colors.blue,
     Colors.purple,
     Colors.orange,
@@ -473,44 +469,26 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to pick image: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget('Failed to pick image: $e', Colors.red, context);
     }
   }
 
   Future<void> _postProduct() async {
-    // Validate inputs فخ ةشنث  arabic!!!! to make sure they are correct and not empty only not em[ty actually]
+    // Validate inputs فخ ةشنث  arabic!!!! to make sure they are correct and not empty only not empty
     if (postProductNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a product name'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget('Please enter a product name', Colors.red, context);
       return;
     }
 
     if (postProductPriceController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a price'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget('Please enter a price', Colors.red, context);
+
       return;
     }
 
     if (postProductStorageQuantityController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a quantity'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget('Please enter a quantity', Colors.red, context);
+
       return;
     }
 
@@ -521,22 +499,14 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
           int.tryParse(postProductStorageQuantityController.text) ?? 0;
 
       if (price <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Price must be greater than 0'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarWidget('Price must be greater than 0', Colors.red, context);
+
         return;
       }
 
       if (stock < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Quantity cannot be negative'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarWidget('Quantity cannot be negative', Colors.red, context);
+
         return;
       }
 
@@ -547,12 +517,8 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
           uploadedUrl = await _productService.uploadImage(_pickedImageFile!);
           debugPrint('Image uploaded: $uploadedUrl');
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Image upload failed: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarWidget('Image upload failed : $e', Colors.red, context);
+
           return;
         }
       }
@@ -573,16 +539,11 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
       debugPrint('Posting product data: $productData');
 
       // Create product using postProductRaw not postProduct i should delete that one
-       await _productService.postProductRaw(productData);
-     // await _updateProductService.updateProduct(productData, 164);
+      await _productService.postProductRaw(productData);
+      // await _updateProductService.updateProduct(productData, 164);
       await context.read<ProductsProvider>().refresh();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Product added successfully!"),
-          backgroundColor: Colors.green,
-        ),
-      );
+      SnackbarWidget("Product added successfully!", Colors.green, context);
 
       postProductNameController.clear();
       postProductPriceController.clear();
@@ -596,33 +557,18 @@ class ProductdialogwidgetState extends State<Productdialogwidget> {
       Navigator.pop(context);
     } catch (e) {
       debugPrint('Error posting product: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Failed to add product: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget("Failed to add product: $e", Colors.red, context);
     }
   }
 
   static void archiveProduct(BuildContext context, int productId) async {
     try {
       await context.read<ProductsProvider>().archiveProduct(productId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Product archived successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      SnackbarWidget('Product archived successfully', Colors.green, context);
     } catch (e) {
       if (context.mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to archive: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarWidget('Failed to archive: $e', Colors.red, context);
       }
     }
   }

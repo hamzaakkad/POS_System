@@ -31,7 +31,7 @@ class PostCategoryService {
         'Content-Type': 'application/json; charset=UTF-8',
       },
 
-      body: jsonEncode(<String, String>{"name": "${category.name}"}),
+      body: jsonEncode(<String, String>{"name": category.name}),
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -44,10 +44,10 @@ class PostCategoryService {
 
 class DeleteCategoryService {
   final String baseUrl = 'http://127.0.0.1:5000/api';
-  Future<void> deleteCategory(int? category_id) async {
+  Future<void> deleteCategory(int? categoryId) async {
     try {
       final response = await http.delete(
-        Uri.parse("$baseUrl/categories/delete/$category_id"),
+        Uri.parse("$baseUrl/categories/delete/$categoryId"),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -64,10 +64,10 @@ class DeleteCategoryService {
 
 class EditCategoriesService {
   final String baseUrl = 'http://127.0.0.1:5000/api';
-  Future<void> EditCategory(int? category_id, String name) async {
+  Future<void> EditCategory(int? categoryId, String name) async {
     try {
       final response = await http.put(
-        Uri.parse("$baseUrl/categories/edit/$category_id"),
+        Uri.parse("$baseUrl/categories/edit/$categoryId"),
         headers: <String, String> {
           'Content-Type': 'application/json; charset=UTF-8',
         },

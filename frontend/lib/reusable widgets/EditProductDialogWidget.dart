@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pos_system/reusable%20widgets/ReusableButtons.dart';
+import 'package:pos_system/reusable%20widgets/UiWidgets.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import '../providers/product_provider.dart';
@@ -128,12 +130,7 @@ class _EditProductDialogWidgetState extends State<EditProductDialogWidget> {
 
   Future<void> _updateProduct() async {
     if (nameController.text.isEmpty || priceController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Name and Price are required'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget('Name and Price are required', Colors.red, context);
       return;
     }
 
@@ -161,20 +158,10 @@ class _EditProductDialogWidgetState extends State<EditProductDialogWidget> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Product updated successfully!"),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackbarWidget("Product updated successfully!", Colors.green, context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Update failed: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackbarWidget("Update failed: $e", Colors.red, context);
     }
   }
 
@@ -414,52 +401,13 @@ class _EditProductDialogWidgetState extends State<EditProductDialogWidget> {
                 const SizedBox(height: 32),
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(
-                            color: isDark
-                                ? AppColors.darkButtonsPrimary
-                                : Colors.grey.shade400,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: Text(
-                          'CANCEL',
-                          style: TextStyle(
-                            color: isDark
-                                ? AppColors.darkTextPrimary
-                                : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _updateProduct,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isDark
-                              ? AppColors.darkButtonsPrimary
-                              : AppColors.accentBlue,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          'SAVE CHANGES',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
+                    // SecondaryButton(
+                    //   'CANCEL',
+                    //   isDark,
+                    //   () => Navigator.of(context).pop(),
+                    // ),
+                    //const SizedBox(width: 16),
+                    GenerelButton('SAVE CHANGES', isDark, _updateProduct),
                   ],
                 ),
               ],

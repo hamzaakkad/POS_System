@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/account_service.dart';
-import '../models/account_model.dart';
 import '../providers/account_provider.dart';
 import '../reusable widgets/AppColors.dart';
 import '../providers/theme_provider.dart';
-import '../pages/pos_dashboard.dart';
 
 class AuthPage extends StatefulWidget {
   final bool isLogin;
+
   const AuthPage({super.key, this.isLogin = true});
 
   @override
-  State<AuthPage> createState() => _AuthPageState();
+  State<AuthPage> createState() => AuthPageState();
 }
 
-class _AuthPageState extends State<AuthPage> {
+class AuthPageState extends State<AuthPage> {
   late bool isLogin;
-  final _formKey = GlobalKey<FormState>();
+  final formKey = GlobalKey<FormState>();
 
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final firstPhoneNumberController = TextEditingController();
+  final secondPhoneNumberController = TextEditingController();
 
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   void initState() {
@@ -33,85 +33,20 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    firstPhoneNumberController.dispose();
+    secondPhoneNumberController.dispose();
     super.dispose();
-  }
-
-  void _toggleAuthMode() {
-    setState(() {
-      isLogin = !isLogin;
-      _formKey.currentState?.reset();
-    });
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final accountProvider = context.read<AccountProvider>();
-
-    try {
-      if (isLogin) {
-        final success = await accountProvider.login(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-        if (success && mounted) {
-          _navigateToDashboard();
-        } else if (mounted && accountProvider.error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(accountProvider.error!),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } else {
-        final success = await accountProvider.signup(
-          _nameController.text.trim(),
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-        if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Account created! Please login.")),
-          );
-          setState(() => isLogin = true);
-          _nameController.clear();
-          _emailController.clear();
-          _passwordController.clear();
-        } else if (mounted && accountProvider.error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(accountProvider.error!),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll("Exception: ", "")),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _navigateToDashboard() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const PosDashboardPage()),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final watchAccountProvider = context.watch<AccountProvider>();
+    bool isLogin = watchAccountProvider.isLogin;
     final isDark = context.watch<ThemeProvider>().isDark;
-
+    final readAccountProvider = context.read<AccountProvider>();
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -135,13 +70,9 @@ class _AuthPageState extends State<AuthPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: IconButton(
-                            icon: Icon(
-                              Icons.arrow_back,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextPrimary,
-                            ),
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {},
+                            icon: Icon(Icons.arrow_back),
+                            color: Colors.transparent,
                           ),
                         ),
                         Text(
@@ -161,7 +92,7 @@ class _AuthPageState extends State<AuthPage> {
 
                     const SizedBox(height: 40),
 
-                    /// new account card style (Matches Orders Table Styling)
+                    /// new account card style (Matches Orders Table Styling) with some cool shadows
                     Expanded(
                       child: Center(
                         child: SingleChildScrollView(
@@ -190,7 +121,7 @@ class _AuthPageState extends State<AuthPage> {
                               ],
                             ),
                             child: Form(
-                              key: _formKey,
+                              key: formKey,
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -218,7 +149,7 @@ class _AuthPageState extends State<AuthPage> {
 
                                   if (!isLogin) ...[
                                     _buildTextField(
-                                      controller: _nameController,
+                                      controller: nameController,
                                       label: "Full Name",
                                       icon: Icons.person_outline,
                                       isDark: isDark,
@@ -226,19 +157,50 @@ class _AuthPageState extends State<AuthPage> {
                                     const SizedBox(height: 20),
                                   ],
                                   _buildTextField(
-                                    controller: _emailController,
+                                    controller: emailController,
                                     label: "Email Address",
                                     icon: Icons.email_outlined,
                                     isDark: isDark,
                                     keyboardType: TextInputType.emailAddress,
                                   ),
+                                  if (!isLogin) ...[
+                                    const SizedBox(height: 20),
+
+                                    _buildPhoneField(
+                                      controller: firstPhoneNumberController,
+                                      label: "Phone (optional)",
+                                      icon: Icons.phone,
+                                      isDark: isDark,
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                    const SizedBox(height: 20),
+
+                                    _buildPhoneField(
+                                      controller: secondPhoneNumberController,
+                                      label: "Second Phone (optional)",
+                                      icon: Icons.phone,
+                                      isDark: isDark,
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                  ],
+
                                   const SizedBox(height: 20),
                                   _buildTextField(
-                                    controller: _passwordController,
+                                    controller: passwordController,
                                     label: "Password",
                                     icon: Icons.lock_outline,
                                     isDark: isDark,
                                     isPassword: true,
+                                    //YESS
+                                    onSubmitted: (_) =>
+                                        watchAccountProvider.submit(
+                                          context,
+                                          nameController,
+                                          emailController,
+                                          passwordController,
+                                          firstPhoneNumberController,
+                                          secondPhoneNumberController,
+                                        ),
                                   ),
                                   const SizedBox(height: 40),
 
@@ -248,7 +210,15 @@ class _AuthPageState extends State<AuthPage> {
                                       return ElevatedButton(
                                         onPressed: accountProvider.loading
                                             ? null
-                                            : _submit,
+                                            : () async =>
+                                                  await accountProvider.submit(
+                                                    context,
+                                                    nameController,
+                                                    emailController,
+                                                    passwordController,
+                                                    firstPhoneNumberController,
+                                                    secondPhoneNumberController,
+                                                  ),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: isDark
                                               ? AppColors.darkButtonsPrimary
@@ -264,6 +234,7 @@ class _AuthPageState extends State<AuthPage> {
                                           ),
                                           elevation: 0,
                                         ),
+
                                         child: accountProvider.loading
                                             ? const SizedBox(
                                                 height: 20,
@@ -289,7 +260,8 @@ class _AuthPageState extends State<AuthPage> {
                                   const SizedBox(height: 24),
 
                                   TextButton(
-                                    onPressed: _toggleAuthMode,
+                                    onPressed:
+                                        watchAccountProvider.toggleAuthMode,
                                     child: Text(
                                       isLogin
                                           ? "Don't have an account? Sign Up"
@@ -328,8 +300,10 @@ class _AuthPageState extends State<AuthPage> {
     required bool isDark,
     bool isPassword = false,
     TextInputType keyboardType = TextInputType.text,
+    onSubmitted,
   }) {
     return TextFormField(
+      onFieldSubmitted: onSubmitted,
       controller: controller,
       obscureText: isPassword,
       keyboardType: keyboardType,
@@ -363,11 +337,73 @@ class _AuthPageState extends State<AuthPage> {
       ),
       validator: (value) {
         if (value == null || value.isEmpty) return "Field required";
-        if (label.contains("Email") && !value.contains("@"))
+        if (label.contains("Email") && !value.contains("@")) {
           return "Invalid email";
+        }
+
+        if (value.contains(' ')) return 'Spaces are not allowed';
+
         if (isPassword && value.length < 6) return "Min 6 characters";
         return null;
       },
     );
   }
+}
+
+Widget _buildPhoneField({
+  required TextEditingController controller,
+  required String label,
+  required IconData icon,
+  required bool isDark,
+  bool isPassword = false,
+  TextInputType keyboardType = TextInputType.text,
+}) {
+  return TextFormField(
+    controller: controller,
+    obscureText: isPassword,
+    keyboardType: keyboardType,
+    style: TextStyle(
+      color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+    ),
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(
+        icon,
+        color: isDark ? AppColors.darkTextSecondary : Colors.grey.shade600,
+      ),
+      labelStyle: TextStyle(
+        color: isDark ? AppColors.darkTextMuted : Colors.grey.shade600,
+      ),
+      filled: true,
+      fillColor: isDark ? AppColors.darkBgSurface : Colors.grey.shade50,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isDark ? AppColors.darkButtonsPrimary : AppColors.accentBlue,
+          width: 2,
+        ),
+      ),
+    ),
+    validator: (value) {
+      if (value == null || value.isEmpty) {
+        return null;
+      }
+
+      //Check if it contains ONLY numbers (0-9)
+      // The regex ^[0-9]+$ matches from start to end for digits only
+      final numberRegex = RegExp(r'^[0-9]+$');
+
+      if (!numberRegex.hasMatch(value)) {
+        return 'You can only type numbers here!';
+      }
+
+      return null;
+    },
+  );
 }

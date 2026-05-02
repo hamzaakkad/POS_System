@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/product_model.dart';
-import '../pages/pos_dashboard.dart';
 
 class productService {
   final String baseUrl = 'http://127.0.0.1:5000/api';
@@ -11,7 +10,7 @@ class productService {
   String? searchQuery;
 
   int? remainingCount;
-  String? _currentCursor = null;
+  String? _currentCursor;
 
   Future<List<productModel>> fetchProducts({
     bool loadMore = false,
@@ -35,19 +34,18 @@ class productService {
     final query = _currentCursor == null ? '' : '&cursor=$_currentCursor';
     final minPriceQuery = minPrice == null ? '' : '&min_price=$minPrice';
     final maxPriceQuery = maxPrice == null ? '' : '&max_price=$maxPrice';
-    final sort_ASC = sort_AtoZ == true ? '&sort_atoz=true' : '';
-    final sort_DESC = sort_ZtoA == true ? '&sort_ztoa=true' : '';
+    final sortAsc = sort_AtoZ == true ? '&sort_atoz=true' : '';
+    final sortDesc = sort_ZtoA == true ? '&sort_ztoa=true' : '';
     final inStockOnly = inStock == true ? '&instock=1' : '';
     final outOfStockOnly = outOfStock == true ? '&outofstock=1' : '';
-    final category_id = category == null ? '' : '&category=$category';
+    final categoryId = category == null ? '' : '&category=$category';
 
-    final url = '$baseUrl/products/paged?limit=20$query$search$minPriceQuery$maxPriceQuery$sort_ASC$sort_DESC$inStockOnly$outOfStockOnly$category_id';
-    
+    final url =
+        '$baseUrl/products/paged?limit=20$query$search$minPriceQuery$maxPriceQuery$sortAsc$sortDesc$inStockOnly$outOfStockOnly$categoryId';
+
     debugPrint('Fetching products URL: $url');
 
-    final response = await http.get(
-      Uri.parse(url),
-    );
+    final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       Map<String, dynamic> json = jsonDecode(response.body);
@@ -64,12 +62,14 @@ class productService {
       _currentCursor = json['next_cursor']?.toString();
       remainingCount = json['remaining_count'];
       debugPrint(
-        'Fetched ${data.length} products, next cursor: $_currentCursor, remaining count is: $remainingCount, and user searched for : $searchQuery, and minimum asked price is : $minPrice, and maximim asked price is : $maxPrice, and category id is: $category_id',
+        'Fetched ${data.length} products, next cursor: $_currentCursor, remaining count is: $remainingCount, and user searched for : $searchQuery, and minimum asked price is : $minPrice, and maximim asked price is : $maxPrice, and category id is: $categoryId',
       );
 
       return data.map((e) => productModel.fromJson(e)).toList();
     } else {
-      throw Exception('Failed to load products: ${response.statusCode}');
+      throw Exception(
+        'Failed to load products: ${response.statusCode}, ${response.body}',
+      );
     }
   }
 
@@ -82,7 +82,7 @@ class productPageService {
   String? searchQuery;
 
   int? remainingCount;
-  String? ccurrentCursor = null;
+  String? ccurrentCursor;
 
   Future<List<productModel>> fetchProducts({
     bool loadMore = false,
@@ -106,19 +106,18 @@ class productPageService {
     final query = currentCursor == null ? '' : '&cursor=$currentCursor';
     final minPriceQuery = minPrice == null ? '' : '&min_price=$minPrice';
     final maxPriceQuery = maxPrice == null ? '' : '&max_price=$maxPrice';
-    final sort_ASC = sort_AtoZ == true ? '&sort_atoz=true' : '';
-    final sort_DESC = sort_ZtoA == true ? '&sort_ztoa=true' : '';
+    final sortAsc = sort_AtoZ == true ? '&sort_atoz=true' : '';
+    final sortDesc = sort_ZtoA == true ? '&sort_ztoa=true' : '';
     final inStockOnly = inStock == true ? '&instock=1' : '';
     final outOfStockOnly = outOfStock == true ? '&outofstock=1' : '';
-    final category_id = category == null ? '' : '&category=$category';
+    final categoryId = category == null ? '' : '&category=$category';
 
-    final url = '$baseUrl/products/paged?limit=20$query$search$minPriceQuery$maxPriceQuery$sort_ASC$sort_DESC$inStockOnly$outOfStockOnly$category_id';
-    
+    final url =
+        '$baseUrl/products/paged?limit=20$query$search$minPriceQuery$maxPriceQuery$sortAsc$sortDesc$inStockOnly$outOfStockOnly$categoryId';
+
     debugPrint('Fetching products page URL: $url');
 
-    final response = await http.get(
-      Uri.parse(url),
-    );
+    final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       Map<String, dynamic> json = jsonDecode(response.body);
@@ -135,7 +134,7 @@ class productPageService {
       currentCursor = json['next_cursor']?.toString();
       remainingCount = json['remaining_count'];
       debugPrint(
-        'Fetched ${data.length} products, next cursor: $currentCursor, remaining count is: $remainingCount, and user searched for : $searchQuery, and minimum asked price is : $minPrice, and maximim asked price is : $maxPrice, and category id is: $category_id',
+        'Fetched ${data.length} products, next cursor: $currentCursor, remaining count is: $remainingCount, and user searched for : $searchQuery, and minimum asked price is : $minPrice, and maximim asked price is : $maxPrice, and category id is: $categoryId',
       );
 
       return data.map((e) => productModel.fromJson(e)).toList();
@@ -149,7 +148,7 @@ class productPageService {
 
 class FetchCategorizedProducts {
   final String baseUrl = 'http://127.0.0.1:5000/api';
-  
+
   Future<List<productModel>> fetchProducts({
     bool loadMore = false,
     String? searchQuery,
@@ -166,18 +165,17 @@ class FetchCategorizedProducts {
         : '';
     final minPriceQuery = minPrice == null ? '' : '&min_price=$minPrice';
     final maxPriceQuery = maxPrice == null ? '' : '&max_price=$maxPrice';
-    final sort_ASC = sort_AtoZ == true ? '&sort_atoz=true' : '';
-    final sort_DESC = sort_ZtoA == true ? '&sort_ztoa=true' : '';
+    final sortAsc = sort_AtoZ == true ? '&sort_atoz=true' : '';
+    final sortDesc = sort_ZtoA == true ? '&sort_ztoa=true' : '';
     final inStockOnly = inStock == true ? '&instock=1' : '';
     final outOfStockOnly = outOfStock == true ? '&outofstock=1' : '';
 
-    final url = '$baseUrl/categories/$category/products?limit=20$search$minPriceQuery$maxPriceQuery$sort_ASC$sort_DESC$inStockOnly$outOfStockOnly';
-    
+    final url =
+        '$baseUrl/categories/$category/products?limit=20$search$minPriceQuery$maxPriceQuery$sortAsc$sortDesc$inStockOnly$outOfStockOnly';
+
     debugPrint('Fetching categorized products URL: $url');
 
-    final response = await http.get(
-      Uri.parse(url),
-    );
+    final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       Map<String?, dynamic> json = jsonDecode(response.body);
@@ -194,20 +192,22 @@ class FetchCategorizedProducts {
 
 class UpdateProductService {
   final String baseUrl = 'http://localhost:5000/api';
-Future<void> updateProduct(Map<String, dynamic> data, int product_id) async {
-  final response = await http.put(  
-    Uri.parse('$baseUrl/products/$product_id'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-    },
-    body: jsonEncode(data),
-  );
-  if (response.statusCode == 200) {
-    print("Product updated successfully");
-  } else {
-    print("Failed to update product: ${response.statusCode} ${response.body}");
+  Future<void> updateProduct(Map<String, dynamic> data, int productId) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/products/$productId'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(data),
+    );
+    if (response.statusCode == 200) {
+      print("Product updated successfully");
+    } else {
+      print(
+        "Failed to update product: ${response.statusCode} ${response.body}",
+      );
+    }
   }
-}
 }
 
 class postProductService {
@@ -226,16 +226,20 @@ class postProductService {
   }
 
   Future<String> uploadImage(File file) async {
-    final uri = Uri.parse('$baseUrl/uploads');
+    // final uri = Uri.parse('$baseUrl/uploads');
+    //https://api.cloudinary.com/v1_1/df3uhshzy/image/upload?upload_preset=POS-SYSTEM%20Images
+    final uri = Uri.parse(
+      'https://api.cloudinary.com/v1_1/df3uhshzy/image/upload?upload_preset=POS-SYSTEM%20Images',
+    );
     final request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('file', file.path));
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
-
-    if (response.statusCode == 201) {
+    // debugPrint("Image upload failed: ${response.statusCode} ${response.body}");
+    if (response.statusCode == 201 || response.statusCode == 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return body['url']
-          as String;
+      //  debugPrint(body['url']);
+      return body['url'] as String;
     } else {
       throw Exception(
         "Image upload failed: ${response.statusCode} ${response.body}",
@@ -251,12 +255,13 @@ class postProductService {
       },
 
       body: jsonEncode(<String, dynamic>{
-        "name": "${product.name}",
+        "name": product.name,
         "price": product.price,
         "storage_quantity": product.stock,
-        "category_ids": product.category_id != null ? [product.category_id] : [],
+        "category_ids": product.category_id != null
+            ? [product.category_id]
+            : [],
       }),
-
     );
     if (response.statusCode == 201) {
       print("Recieved 201 from post Product Service line 97");

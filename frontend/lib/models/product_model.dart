@@ -55,16 +55,6 @@ class productPageModel {
     this.category_id,
   });
 
-  // factory productPageModel.fromJson(Map<String, dynamic> json) {
-  //   return productPageModel(
-  //     id: json['id'] ?? 0,
-  //     name: json['name'] ?? '',
-  //     price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
-  //     stock: json['storage_quantity'] ?? 0,
-  //     imageUrl: json['image_url']?.toString(),
-  //     category_id: json['category_id'],
-  //   );
-  // }
   factory productPageModel.fromProductModel(productModel product) {
   return productPageModel(
     id: product.id,
@@ -87,26 +77,6 @@ class productPageModel {
     };
   }
 }
-// for testing the pagination
-// class ProductResponse {
-//   final List<dynamic> products;
-//   final int count;
-//   final int? nextCursor;
-
-//   ProductResponse({
-//     required this.products,
-//     required this.count,
-//     this.nextCursor,
-//   });
-
-//   factory ProductResponse.fromJson(Map<String, dynamic> json) {
-//     return ProductResponse(
-//       products: json['products'],
-//       count: json['count'],
-//       nextCursor: json['next_cursor'],
-//     );
-//   }
-// }
 
 class ResponseModel {
   final int? nextCursor;
@@ -122,30 +92,3 @@ class ResponseModel {
   }
 }
 
-// class Product {
-//   final int id;
-//   final String name;
-//   final double price;
-//   final int stock;
-//   final String? imageUrl;
-
-//   product({
-//     required this.id,
-//     required this.name,
-//     required this.price,
-//     required this.stock,
-//     this.imageUrl,
-//   });
-// }
-
-// class Response {
-//   final List<dynamic> products;
-//   final int count;
-//   final int? nextCursor;
-
-//   Response({
-//     required this.products,
-//     required this.count,
-//     this.nextCursor,
-//   });
-// }

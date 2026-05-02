@@ -243,7 +243,7 @@ class FiltersSheet extends StatelessWidget {
         child: Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: isDark
+          activeThumbColor: isDark
               ? AppColors.darkButtonsPrimary
               : AppColors.accentBlue,
         ),

@@ -7,8 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/pages/pos_dashboard.dart';
-import 'package:pos_system/main.dart';
+import 'package:pos_system/pages/pos_dashboard.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {

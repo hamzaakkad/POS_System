@@ -5,6 +5,31 @@ import os
 import uuid
 from werkzeug.utils import secure_filename
 import bcrypt
+from decimal import Decimal
+
+
+# --- permission helpers ----------------------------------------------------
+
+def _user_has_page_permission(user_id: int, page_key: str, cursor) -> bool:
+    # look up mapping
+    cursor.execute("""
+        SELECT permission_id FROM page_permission WHERE page_key = %s
+    """, (page_key,))
+    row = cursor.fetchone()
+    if not row:
+        return True
+    perm_id = row.get('permission_id')
+    if not perm_id:
+        return True
+    # check if user's role has this permission
+    cursor.execute("""
+        SELECT 1
+        FROM users u
+        JOIN role_permission rp ON u.role_id = rp.role_id
+        WHERE u.id = %s AND rp.permission_id = %s
+    """, (user_id, perm_id))
+    return cursor.fetchone() is not None
+
 
 api = Blueprint('api', __name__)
 
@@ -20,6 +45,8 @@ def home():
             'health': '/health'
             #remember to add the new api routes
             # i should really update these :))
+
+            #FR
         }
     })
 
@@ -34,22 +61,7 @@ def health_check():
     return jsonify({'status': 'unhealthy', 'database': 'disconnected'}), 500
 
 
-# @api.route('/products', methods=['GET'])
-# def get_all_products():
-#     """Get all products from database"""
-#     connection = db.get_connection()
-#     if not connection:
-#         return jsonify({'error': 'Database connection failed'}), 500
 
-#     cursor = connection.cursor(dictionary=True)
-#     try:
-#         cursor.execute("SELECT * FROM product WHERE is_archived = 0")#is archived = 0 the product is theere = 1 the product is archived
-#         products = cursor.fetchall()
-#         return jsonify({'products': products, 'count': len(products)})
-#     except mysql.connector.Error as e:
-#         return jsonify({'error': str(e)}), 500
-#     finally:
-#         db.close_connection(connection, cursor)
 @api.route('/products', methods=['GET'])
 def get_all_products():
     connection = db.get_connection()
@@ -75,8 +87,208 @@ def get_all_products():
         db.close_connection(connection, cursor)
 
 
+@api.route('/admin/users', methods=['GET'])
+def admin_list_users():
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        query = """
+            SELECT u.id, u.name, u.email, u.role_id, r.role as role
+            FROM users u
+            LEFT JOIN role r ON u.role_id = r.id
+        """
+        cursor.execute(query)
+        users = cursor.fetchall()
+        return jsonify({'users': users}), 200
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
+@api.route('/admin/roles', methods=['GET', 'POST'])# imma add DELETE later after i test this and it works
+def admin_roles():
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if request.method == 'GET':
+            # Fetch roles with their permissions
+            query = """
+                SELECT r.id AS role_id, r.role AS role_name, p.id AS permission_id, p.permission AS permission_name
+                FROM role r
+                LEFT JOIN role_permission rp ON r.id = rp.role_id
+                LEFT JOIN permission p ON rp.permission_id = p.id
+                ORDER BY r.id
+            """
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            roles = {}
+            for row in rows:
+                rid = row['role_id']
+                if rid not in roles:
+                    roles[rid] = {'id': rid, 'role': row['role_name'], 'permissions': []}
+                if row['permission_id'] and row['permission_name']:
+                    roles[rid]['permissions'].append({'id': row['permission_id'], 'permission': row['permission_name']})
+
+            return jsonify({'roles': list(roles.values())}), 200
+
+        # POST -> create role
+        data = request.get_json() or {}
+        admin_id = data.get('admin_id')
+        # simple admin check
+        if not admin_id:
+            return jsonify({'error': 'admin_id required'}), 400
+
+        # verify admin
+        cursor.execute("SELECT r.role FROM users u JOIN role r ON u.role_id = r.id WHERE u.id = %s", (admin_id,))
+        admin_role = cursor.fetchone()
+        if not admin_role or admin_role.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        role_name = data.get('role')
+        permission_ids = data.get('permission_ids', [])
+        if not role_name:
+            return jsonify({'error': 'role name is required'}), 400
+
+        cursor.execute("INSERT INTO role (role) VALUES (%s)", (role_name,))
+        new_role_id = cursor.lastrowid
+        if permission_ids:
+            rp_query = "INSERT INTO role_permission (role_id, permission_id) VALUES (%s, %s)"
+            rp_data = [(new_role_id, pid) for pid in permission_ids]
+            cursor.executemany(rp_query, rp_data)
+
+        connection.commit()
+        return jsonify({'message': 'Role created', 'role_id': new_role_id}), 201
+
+    except mysql.connector.Error as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
+@api.route('/admin/roles/<int:role_id>', methods=['PUT'])
+def admin_update_role(role_id):
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        data = request.get_json() or {}
+        admin_id = data.get('admin_id')
+        if not admin_id:
+            return jsonify({'error': 'admin_id required'}), 400
+
+        cursor.execute("SELECT r.role FROM users u JOIN role r ON u.role_id = r.id WHERE u.id = %s", (admin_id,))
+        admin_role = cursor.fetchone()
+        if not admin_role or admin_role.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        role_name = data.get('role')
+        permission_ids = data.get('permission_ids')
+
+        if role_name:
+            cursor.execute("UPDATE role SET role = %s WHERE id = %s", (role_name, role_id))
+
+        if permission_ids is not None:
+            # replace mappings
+            cursor.execute("DELETE FROM role_permission WHERE role_id = %s", (role_id,))
+            if permission_ids:
+                rp_query = "INSERT INTO role_permission (role_id, permission_id) VALUES (%s, %s)"
+                rp_data = [(role_id, pid) for pid in permission_ids]
+                cursor.executemany(rp_query, rp_data)
+
+        connection.commit()
+        return jsonify({'message': 'Role updated'}), 200
+
+    except mysql.connector.Error as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
+@api.route('/admin/users/role/<int:user_id>', methods=['PUT'])
+def admin_update_user_role(user_id):
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        data = request.get_json() or {}
+        admin_id = data.get('admin_id')
+        new_role_id = data.get('role_id')
+        if not admin_id or new_role_id is None:
+            return jsonify({'error': 'admin_id and role_id are required'}), 400
+
+        cursor.execute("SELECT r.role FROM users u JOIN role r ON u.role_id = r.id WHERE u.id = %s", (admin_id,))
+        admin_role = cursor.fetchone()
+        if not admin_role or admin_role.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        cursor.execute("UPDATE users SET role_id = %s WHERE id = %s", (new_role_id, user_id))
+        connection.commit()
+        return jsonify({'message': 'User role updated'}), 200
+
+    except mysql.connector.Error as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
+@api.route('/admin/permissions', methods=['GET', 'POST'])
+def admin_permissions():
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        if request.method == 'GET':
+            cursor.execute("SELECT id, permission FROM permission")
+            perms = cursor.fetchall()
+            return jsonify({'permissions': perms}), 200
+
+        data = request.get_json() or {}
+        admin_id = data.get('admin_id')
+        perm_name = data.get('permission')
+        if not admin_id or not perm_name:
+            return jsonify({'error': 'admin_id and permission are required'}), 400
+
+        cursor.execute("SELECT r.role FROM users u JOIN role r ON u.role_id = r.id WHERE u.id = %s", (admin_id,))
+        admin_role = cursor.fetchone()
+        if not admin_role or admin_role.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        cursor.execute("INSERT INTO permission (permission) VALUES (%s)", (perm_name,))
+        new_id = cursor.lastrowid
+        connection.commit()
+        return jsonify({'message': 'Permission created', 'permission_id': new_id}), 201
+
+    except mysql.connector.Error as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
     
 #Still testing the route it works now wih postman and imma test it with the frontend 
+#It works 
 @api.route('/products/paged', methods=['GET'])
 def get_paged_products():
     # 1. Get Parameters
@@ -170,7 +382,7 @@ def get_paged_products():
                 next_cursor = last_item['id']
 
         # 6. Calculate Remaining Count correctly
-        # We count total matching items and subtract what we've already seen
+        # We count total matching items and subtract what we've already seen after coming back here i ask my self did i built that i measn it look diff than the one in my mind 
         count_query = f"SELECT COUNT(*) as total FROM product p {join_clause} {count_where_str}"
         cursor.execute(count_query, count_params)
         total_matched = cursor.fetchone()['total']
@@ -198,27 +410,6 @@ def get_paged_products():
         db.close_connection(connection, cursor)
 
 
-# @api.route('/categories/manytomany/<int:category_id>', methods = ['GET'])
-# def get_products_in_categories(category_id):
-#     """Get all products in the category id based on the Many to Many relationship between the product table
-#     and the category table setting in in the product_category_rel table just like orders and 
-#     ordered_item relationship with product table"""
-#     connection = db.get_connection()
-#     if not connection:
-#         return jsonify({'error': 'Database connection failed'}), 500
-    
-#     cursor = connection.cursor(dictionary=True)
-#     try:
-#         cursor.execute("SELECT * FROM product_category_rel WHERE category_id = %s ", (category_id,))
-#         product_id = cursor.fetchall()
-        
-#         return jsonify({'product_id': product_id, 'count': len(product_id)})
-    
-#     except mysql.connector.Error as e:
-#             return jsonify({'error': str(e)}), 500
-#     finally:
-#             db.close_connection(connection, cursor)
-#THIS WORKSSSSS :) 
 @api.route('/categories/<int:category_id>/products', methods=['GET'])
 def get_products_by_category(category_id):
     """
@@ -235,6 +426,7 @@ def get_products_by_category(category_id):
         # 1. Select everything from 'product' (p)
         # 2. Join with 'product_category_rel' (rel) where IDs match
         # 3. Filter by the category_id provided in the URL
+        # I sould really get better at join commands
         query = """
             SELECT p.* FROM product p
             INNER JOIN product_category_rel rel ON p.id = rel.product_id
@@ -244,7 +436,7 @@ def get_products_by_category(category_id):
         cursor.execute(query, (category_id,))
         products = cursor.fetchall()
         
-        # Return the list of products and a their count
+        # Return the list of products and their count
         return jsonify({
             'category_id': category_id,
             'count': len(products),
@@ -333,46 +525,7 @@ def edit_category(category_id):
     finally:
         db.close_connection(connection, cursor)
 
-# @api.route('/products', methods=['POST'])
-# def create_product():
-#     """Create a new product"""
-#     data = request.get_json()
 
-#     # Validate required fields
-#     if not data or 'name' not in data or 'price' not in data:
-#         return jsonify({'error': 'Name and price are required'}), 400
-
-#     connection = db.get_connection()
-#     if not connection:
-#         return jsonify({'error': 'Database connection failed'}), 500
-
-#     cursor = connection.cursor()
-#     try:
-#         # include image_url if provided (client uploads image first and supplies URL)
-#         query = """
-#         INSERT INTO product (name, price, storage_quantity, image_url) 
-#         VALUES (%s, %s, %s, %s)
-#         """
-#         values = (
-#             data['name'],
-#             data['price'],
-#             data.get('storage_quantity', 0),
-#             data.get('image_url'),
-#            # data.get('category_id')#this one caused me bugs [] () 
-#         )
-
-#         cursor.execute(query, values)
-#         connection.commit()
-#         product_id = cursor.lastrowid
-
-#         return jsonify({
-#             'message': 'Product created successfully',
-#             'product_id': product_id
-#         }), 201
-#     except mysql.connector.Error as e:
-#         return jsonify({'error': str(e)}), 500
-#     finally:
-#         db.close_connection(connection, cursor)
 @api.route('/products', methods=['POST'])
 def create_product():
     """Create a new product and link it to multiple categories"""
@@ -404,6 +557,7 @@ def create_product():
         
         # Get the ID of the product that the user just created
         product_id = cursor.lastrowid#i made this insted of making multiple calls and putting it in the ui that would make the ui even slower and wont be effecient but i was brilliant and i thought anything that can be processed in the frontend  can also be processed in the backend and thats how i made this route work with multiple categories linked to one product
+        #😂😂
             
         #  Handle Category Relationships
         # Expecting 'category_ids' as a list from Flutter, e.g., [1, 2] imma implement the list mechanism rn in the frontend ( service / provider )
@@ -540,7 +694,7 @@ def delete_category(category_id):
         db.close_connection(connection, cursor)
 
     
-@api.route('/uploads', methods=['POST']) #with lots of helps from the internet and the community
+@api.route('/uploads', methods=['POST']) #with lots of help from the internet and the community
 def upload_image():
     """Upload a product image, resize to a small image, and return its URL."""
     if 'file' not in request.files:
@@ -647,145 +801,6 @@ def archive_order(order_id):
 
 
 
-# @api.route('/orders', methods=['POST'])
-# def create_order():
-#     """Create a new order with items"""
-#     data = request.get_json()
-
-#     if not data or 'items' not in data or not data['items']:
-#         return jsonify({'error': 'Order must contain items'}), 400
-
-#     connection = db.get_connection()
-#     if not connection:
-#         return jsonify({'error': 'Database connection failed'}), 500
-
-#     cursor = connection.cursor(dictionary=True)
-
-#     try:
-#         # Start transaction
-#         connection.start_transaction()
-
-#         # Step 1: Calculate total price and check stock
-#         total_price = 0
-#         order_items = []
-
-#         for item in data['items']:
-#             product_id = item.get('product_id')
-#             quantity = item.get('quantity', 1)
-
-#             # Get product details
-#             cursor.execute(
-#                 "SELECT id, name, price, storage_quantity FROM product WHERE id = %s",
-#                 (product_id,)
-#             )
-#             product = cursor.fetchone()
-
-#             if not product:
-#                 return jsonify({'error': f'Product {product_id} not found'}), 404
-
-#             if product['storage_quantity'] < quantity:
-#                 return jsonify({
-#                     'error': f'Insufficient stock for {product["name"]}. '
-#                              f'Available: {product["storage_quantity"]}, Requested: {quantity}'
-#                 }), 400
-
-#             # Calculate item total
-#             item_total = product['price'] * quantity
-#             total_price += item_total
-
-#             order_items.append({
-#                 'product_id': product_id,
-#                 'quantity': quantity,
-#                 'unit_price': product['price'],
-#                 'product': product
-#             })
-
-#         # Step 2: Create order record
-#         cursor.execute(
-#             "INSERT INTO orders (total_price, status) VALUES (%s, %s)",
-#             (total_price, 'pending')
-#         )
-#         order_id = cursor.lastrowid
-
-#         # Step 3: Create order items and update stock
-#         for item in order_items:
-#             # Insert ordered item
-#             cursor.execute(
-#                 """INSERT INTO ordered_item 
-#                    (product_id, order_id, ordered_quantity, unit_price) 
-#                    VALUES (%s, %s, %s, %s)""",
-#                 (item['product_id'], order_id, item['quantity'], item['unit_price'])
-#             )
-
-#             # Update product stock
-#             cursor.execute(
-#                 "UPDATE product SET storage_quantity = storage_quantity - %s WHERE id = %s",
-#                 (item['quantity'], item['product_id'])
-#             )
-
-#         # Step 4: Update order status to completed
-#         cursor.execute(
-#             "UPDATE orders SET status = 'completed' WHERE id = %s",
-#             (order_id,)
-#         )
-
-#         # Commit transaction
-#         connection.commit()
-
-#         return jsonify({
-#             'message': 'Order created successfully',
-#             'order_id': order_id,
-#             'total_price': total_price,
-#             'items_count': len(order_items)
-#         }), 201
-
-#     except mysql.connector.Error as e:
-#         # Rollback in case of error
-#         connection.rollback()
-#         return jsonify({'error': str(e)}), 500
-#     finally:
-#         db.close_connection(connection, cursor)
-
-# a new order api route new 
-
-
-#fetch orders api route
-# @api.route('/fetchorders', methods=['GET'])
-# def get_order():
-#     """fetxh all the orders"""
-#     connection = db.get_connection()
-#     if not connection:
-#         return jsonify({'error': 'Database connection failed'}), 500
-
-#     cursor = connection.cursor(dictionary=True)
-#     try:
-#         # Get order info
-#         cursor.execute("SELECT * FROM orders")
-#         order = cursor.fetchone()
-
-#         if not order:
-#             return jsonify({'error': 'Order not found'}), 404
-
-        # Get order items
-        # cursor.execute("""
-        #     SELECT oi.*, p.name as product_name 
-        #     FROM ordered_item oi
-        #     JOIN product p ON oi.product_id = p.id
-        #     WHERE oi.order_id = %s
-        # """, (order_id,))
-    #     items = cursor.fetchall()
-
-    #     order['items'] = items
-    #     return jsonify(order)
-
-    # except mysql.connector.Error as e:
-    #     return jsonify({'error': str(e)}), 500
-    # finally:
-    #     db.close_connection(connection, cursor)
-
-
-
-
 @api.route('/orders', methods=['POST'])#MARK: NEW ORDER API ROUTE
 def create_order():
     """Process a checkout: Snapshot prices, create order, and update stock"""
@@ -839,7 +854,12 @@ def create_order():
                 VALUES (%s, %s, %s, %s)
             """, (order_id, pid, qty, current_unit_price))
 
-            # Deduct from inventory (IT WORKD RN) i have top edit the ui now so it updates the ui whenever i click the checkout button and removes one the quantity from the item in the ui
+            status = "Pending"
+            method = "Unknown"
+            cursor.execute("""
+                INSERT INTO order_payment_status (order_id, status, method) VALUES (%s, %s, %s)""", (order_id, status, method)) #GREAT
+
+            # Deduct from inventory (IT WORKED RN) i have top edit the ui now so it updates the ui whenever i click the checkout button and removes one the quantity from the item in the ui
             # cursor.execute(
             #      "UPDATE product SET storage_quantity = storage_quantity - %s WHERE id = %s", 
             #      (qty, pid)
@@ -884,17 +904,22 @@ WHERE product_id = the id i get from the user;
 
         """
 
+# @api.route('/orders/getorderpaymentstatus/<int:order_id>', methods=['GET'])
+# def get_order
 
-@api.route('/orders/<int:order_id>', methods=['GET']) # never used it yet idk why i thouyght i might need it but later i might implement orsers search then this would be usefull somehow
+@api.route('/orders/<int:order_id>', methods=['GET']) # never used it yet idk why i thought i might need it but later i might implement orders search then this would be usefull somehow
 
 def get_order(order_id):
     """Get order details with items"""
+    user_id = request.args.get('user_id', type=int)
     connection = db.get_connection()
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
 
     cursor = connection.cursor(dictionary=True)
     try:
+        if user_id and not _user_has_page_permission(user_id, 'orders', cursor):
+            return jsonify({'error': 'Forbidden'}), 403
         # Get order info
         cursor.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
         order = cursor.fetchone()
@@ -922,89 +947,187 @@ def get_order(order_id):
 
 @api.route('/orders', methods=['GET'])
 def get_all_orders():
-    """Return all orders with their items"""
+    # Get pagination parameters from query string (/orders?limit=10&offset=0)
+    limit = request.args.get('limit', default=10, type=int)
+    offset = request.args.get('offset', default=0, type=int)
+
     connection = db.get_connection()
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
-
-    cursor = connection.cursor(dictionary=True)
+    
+    # Using buffered=True to handle unread results
+    cursor = connection.cursor(dictionary=True, buffered=True)
+    
     try:
-        cursor.execute("SELECT * FROM orders ORDER BY id DESC")
+        # Update query to use LIMIT and OFFSET
+        query = "SELECT * FROM orders ORDER BY id DESC LIMIT %s OFFSET %s"
+        cursor.execute(query, (limit, offset))
         orders = cursor.fetchall()
 
-        # attach items for each order
+        # Attach items and status for each order
         for order in orders:
             cursor.execute(
-                """
-                SELECT oi.*, p.name as product_name
-                FROM ordered_item oi
-                JOIN product p ON oi.product_id = p.id
-                WHERE oi.order_id = %s
-                """,
+                "SELECT oi.*, p.name as product_name FROM ordered_item oi "
+                "JOIN product p ON oi.product_id = p.id WHERE oi.order_id = %s",
                 (order['id'],)
             )
-            items = cursor.fetchall()
-            order['items'] = items
+            order['items'] = cursor.fetchall()
+            
+            cursor.execute(
+                "SELECT status, method FROM order_payment_status WHERE order_id = %s",
+                (order['id'],)
+            )
+            status_method_data = cursor.fetchone()
+            if status_method_data:
+                order['order_status'] = status_method_data['status']
+                order['payment_method'] = status_method_data['method']
+            else:
+                order['order_status'] = 'Unknown'
+                order['payment_method'] = 'Unknown'
 
-        return jsonify({'orders': orders, 'count': len(orders)})
+        # Optional: Get total count for frontend pagination UI
+        cursor.execute("SELECT COUNT(*) as total FROM orders")
+        total_count = cursor.fetchone()['total']
+
+        return jsonify({
+            'orders': orders,
+            'limit': limit,
+            'offset': offset,
+            'count': len(orders),
+            'total_count': total_count
+        })
     except mysql.connector.Error as e:
         return jsonify({'error': str(e)}), 500
     finally:
         db.close_connection(connection, cursor)
 
 
-# @api.route('/products/<int:product_id>', methods=['PUT']) # for later usage when i want to update product info i know the enginner would tell me to do thats why i added it for later usage
-# # //she just told me 
 
-# def update_product(product_id):
-#     """Update product details"""
-#     data = request.get_json()
-#     if not data:
-#         return jsonify({"error": "No data provided"}), 400
-
-#     connection = db.get_connection()
-#     if not connection:
-#         return jsonify({"error": "Database connection failed"}), 500
+@api.route('/orders/cashpayment/<int:order_id>/<int:paid_price>', methods=['PUT'])
+def order_payment(order_id, paid_price):
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
     
-#     cursor = connection.cursor()
-#     try:
-#         update_fields = []
-#         values = []
-
-     
-#         if 'name' in data:
-#             update_fields.append("name = %s")
-#             values.append(data['name'])
-#         if 'price' in data:
-#             update_fields.append("price = %s")
-#             values.append(data['price'])
-#         if 'storage_quantity' in data:
-#             update_fields.append("storage_quantity = %s")
-#             values.append(data['storage_quantity'])
-
-#         if not update_fields:
-#             return jsonify({"error": "No fields to update"}), 400
-
-       
-#         values.append(product_id)
+    cursor = connection.cursor(dictionary=True)
+    try:
+        # 1. Fetch order details
+        cursor.execute("SELECT total_price FROM orders WHERE id = %s", (order_id,))
+        order = cursor.fetchone()            
+        if not order:
+            return jsonify({'error': 'Order not found'}), 404
         
-       
-#         query = f"UPDATE product SET {', '.join(update_fields)} WHERE id = %s"
-        
-#         cursor.execute(query, values)
-#         connection.commit()
+        # FIX: Convert all values to Decimal to avoid "unsupported operand" errors
+        order_price = Decimal(str(order['total_price']))
+        current_payment = Decimal(str(paid_price))
 
+        # 2. Get the sum of all previous payments for this order
+        cursor.execute("SELECT SUM(paid_price) as total_paid FROM payments WHERE order_id = %s", (order_id,))
+        payment_history = cursor.fetchone()
+        previous_paid = Decimal(str(payment_history['total_paid'] or 0))
         
-#         if cursor.rowcount == 0:
-#             return jsonify({"error": "Product not found"}), 404
-
-#         return jsonify({"message": "Product updated successfully"})
-
-#     except mysql.connector.Error as e:
-#         return jsonify({"error": str(e)}), 500
-#     finally:
+        # 3. Calculate new totals
+        total_paid_so_far = previous_paid + current_payment
+        money_left = max(Decimal(0), order_price - total_paid_so_far)
         
-#         db.close_connection(connection, cursor)
+        # 4. Determine status
+        status = 'Paid' if total_paid_so_far >= order_price else 'Partially Paid'
+        method = 'Cash'
+
+        # 5. Update the main status table
+        update_status_query = "UPDATE order_payment_status SET status = %s, method = %s WHERE order_id = %s"
+        cursor.execute(update_status_query, (status, method, order_id))
+
+        # 6. Log this specific payment into the history ledger
+        # We store current payment details and the current balance left after this transaction
+        insert_payment_query = """
+            INSERT INTO payments (order_id, order_price, method, status, paid_price, money_left) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        insert_order_payments_query = """
+            INSERT INTO order_payments (order_id, price) 
+            VALUES (%s, %s)
+        """
+        cursor.execute(insert_payment_query, (
+            order_id, 
+            order_price, 
+            method, 
+            status, 
+            current_payment, 
+            money_left
+        ))
+        cursor.execute(insert_order_payments_query, (order_id, paid_price))
+        
+        connection.commit()
+        
+        return jsonify({
+            'message': f'Payment successful. Order is now {status}.',
+            'order_id': order_id,
+            'total_price': float(order_price),
+            'paid_in_this_txn': float(current_payment),
+            'total_paid_to_date': float(total_paid_so_far),
+            'remaining_balance': float(money_left),
+            'status': status
+        }), 200
+        
+    except mysql.connector.Error as e:
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
+@api.route('/orders/payments', methods=['GET'])
+def get_all_payment_records():
+    """Return all order payments records. requires ?user_id=nnn for permission check"""
+
+    user_id = request.args.get('user_id', type=int)
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    cursor = connection.cursor(dictionary=True)
+    try: 
+        if user_id:
+            # enforce page permission
+            if not _user_has_page_permission(user_id, 'payments', cursor):
+                return jsonify({'error': 'Forbidden'}), 403
+        cursor.execute("SELECT * FROM payments ORDER BY id DESC")
+        payment_records = cursor.fetchall()
+        connection.commit()
+        return jsonify({
+            'Payment records': payment_records
+        }), 200
+        
+    except mysql.connector.Error as e:
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+#home made
+@api.route('/orders/orderpayments/<int:order_id>', methods=['GET'])
+def get_all_order_payments(order_id):
+    # Return all order payments records
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    cursor = connection.cursor(dictionary=True)
+    try:
+        query = "SELECT * FROM order_payments WHERE order_id = %s ORDER BY id DESC"
+        cursor.execute(query, (order_id,))
+        payment_records = cursor.fetchall()
+        
+        return jsonify({'payment_records': payment_records}), 200
+        
+    except mysql.connector.Error as e:
+        return jsonify({'error': 'Database error occurred'}), 500
+        
+    finally:
+        if 'cursor' in locals(): cursor.close()
+        db.close_connection(connection)
+
+
+
 @api.route('/products/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
     """Update product details and refresh category links"""
@@ -1075,164 +1198,124 @@ def update_product(product_id):
         db.close_connection(connection, cursor)
 
 
-
-# @api.route('/users/login')
-# def login():
-#     """Login the user"""
-
-# @api.route('/users/signup', methods=['POST'])
-# def signup():
-#     data = request.get_json()
-
-#     #validation
-#     if not data or 'email' not in data or 'password' not in data or 'name' not in data:
-#         return jsonify({'error': 'All fields are required!'}), 400
-
-#     connection = db.get_connection
-#     if not connection:
-#         return jsonify({'error': 'Database connection failed'}), 500
-    
-#     cursor = connection.cursor()
-
-#     try:
-#         # 1 add the parameters and values
-#         signup_query = """INSERT INTO users (name, email, password) VALUES (%s, %s, %s)"""
-
-#         signup_values = (
-#             data['name'],
-#             data['email'],
-#             data['password']
-#         )
-#         cursor.execute(signup_query, signup_values)
-
-#         connection.commit()
-#         return jsonify({
-#             'message': 'User signed up successfully',
-#             'name': data['name'],
-#             'email': data['email']
-#         }), 201
-
-#     except mysql.connector.Error as e:
-#         connection.rollback()  # Undo changes if something goes wrong
-#         return jsonify({'error': str(e)}), 500
-#     finally:
-#         db.close_connection(connection, cursor)
-
-
 @api.route('/users/signup', methods=['POST'])
 def signup():
     data = request.get_json()
 
-    # Validation 
-    required_fields = ['email', 'password', 'name']
+    # 1. Update validation for multiple numbers
+    required_fields = ['email', 'password', 'name', 'phone_numbers']
     if not data or not all(field in data for field in required_fields):
         return jsonify({'error': 'All fields are required!'}), 400
     
-    # Additional validation i like those 
-    if not isinstance(data['email'], str) or '@' not in data['email']:
-        return jsonify({'error': 'Valid email is required'}), 400
-    
-    if not isinstance(data['password'], str) or len(data['password']) < 6:
-        return jsonify({'error': 'Password must be at least 6 characters'}), 400
-    
-    if not isinstance(data['name'], str) or len(data['name'].strip()) == 0:
-        return jsonify({'error': 'Valid name is required'}), 400
+    if not isinstance(data['phone_numbers'], list):
+        return jsonify({'error': 'phone_numbers must be a list'}), 400
+
+    # keep the existing email and password validation
 
     connection = db.get_connection()
-    if not connection:
-        return jsonify({'error': 'Database connection failed'}), 500
-    
     cursor = connection.cursor()
 
     try:
-        # Check if email already exists in db
-        check_email_query = "SELECT id FROM users WHERE email = %s"
-        cursor.execute(check_email_query, (data['email'].strip().lower(),))
-        if cursor.fetchone():
-            return jsonify({'error': 'Email already exists'}), 409  # 409 Conflict
-
-        # hashing password using bcrypt
-        hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt())
-        
-        signup_query = """INSERT INTO users (name, email, password) VALUES (%s, %s, %s)"""
-        signup_values = (
-            data['name'].strip(),
-            data['email'].strip().lower(),  # some funcs to Normalize the email
-            hashed_password.decode('utf-8')  
-            #data['password']
+        # Insert User
+        user_query = "INSERT INTO users (name, email, password) VALUES (%s, %s, %s)"
+        user_values = (
+            data['name'].strip(), 
+            data['email'].strip().lower(), 
+            bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         )
-        cursor.execute(signup_query, signup_values)
-        user_id = cursor.lastrowid  # Get the auto-generated ID from the db
+        cursor.execute(user_query, user_values)
+        new_user_id = cursor.lastrowid 
+
+        # Inserting Multiple Phone Numbers using executemany
+        # imma create a list of tuples just like what i did with the orders and the categopries : [(user_id, phone1), (user_id, phone2), ...]
+
+        """
+        the input should be like this 
+        {
+    "message": "User signed up successfully",
+    "user": {
+        "email": "test@gmailtest.com",
+        "id": 16,
+        "name": "testnumbername",
+        "phone_numbers": [
+            "314234",
+            "234534"
+        ]
+    }
+}
+        """
+
+        phone_query = "INSERT INTO user_phone_numbers (user_id, phone_number) VALUES (%s, %s)"
+        phone_data = [(new_user_id, phone.strip()) for phone in data['phone_numbers']]
         
+        cursor.executemany(phone_query, phone_data)
+
         connection.commit()
-        
         return jsonify({
             'message': 'User signed up successfully',
             'user': {
-                'id': user_id,
+                'id': new_user_id,
                 'name': data['name'],
-                'email': data['email']
+                'email': data['email'],
+                'phone_numbers': data['phone_numbers']
             }
         }), 201
 
-    except mysql.connector.Error as e:
-        connection.rollback()
-        # Log the actual error for debugging
-        print(f"Database error: {e}")
-        return jsonify({'error': 'Registration failed'}), 500
     except Exception as e:
         connection.rollback()
-        
-        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
     finally:
         db.close_connection(connection, cursor)
 
 @api.route('/users/login', methods=['POST'])
 def login():
     data = request.get_json()
-
-    # Validation
     if not data or 'email' not in data or 'password' not in data:
         return jsonify({'error': 'Email and password are required'}), 400
 
     connection = db.get_connection()
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
-    
-    cursor = connection.cursor(dictionary=True)  # Get results as dict
+
+    cursor = connection.cursor(dictionary=True)
 
     try:
-        #Find the mr. user by email
-        login_query = "SELECT id, name, email, password FROM users WHERE email = %s"
+        # JOIN with role table to get the role name
+        login_query = """
+            SELECT u.id, u.name, u.email, u.password, r.role 
+            FROM users u
+            LEFT JOIN role r ON u.role_id = r.id
+            WHERE u.email = %s
+        """
         cursor.execute(login_query, (data['email'].strip().lower(),))
         user = cursor.fetchone()
-        
-        #Checking if the  user exists
-        if not user:
-            # Don't reveal if email exists or not (security best practice)
-            return jsonify({'error': 'Invalid credentials'}), 401
-        
-        #Verify password
 
-        # Assuming password is stored as string in the DB imma encode it back to bytes and validate
+        if not user:
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        # Verify password
         stored_hash = user['password'].encode('utf-8') if isinstance(user['password'], str) else user['password']
         entered_password = data['password'].encode('utf-8')
-        
+
         if bcrypt.checkpw(entered_password, stored_hash):
-            #Password matches - Login successful!
- 
-            
+            # Fetch phone numbers
+            phone_query = "SELECT phone_number FROM user_phone_numbers WHERE user_id = %s"
+            cursor.execute(phone_query, (user['id'],))
+            phone_records = cursor.fetchall()
+            phone_numbers = [record['phone_number'] for record in phone_records]
+
+            # Preparing response and keeping the separate 'role' field
             return jsonify({
                 'message': 'Login successful',
                 'user': {
                     'id': user['id'],
                     'name': user['name'],
-                    'email': user['email']
-                }
-               
+                    'email': user['email'],
+                    'phone_numbers': phone_numbers
+                },
+                'role': user['role']   # here we go
             }), 200
         else:
-            #Password doesn't match "_"
             return jsonify({'error': 'Invalid credentials'}), 401
 
     except mysql.connector.Error as e:
@@ -1242,64 +1325,320 @@ def login():
     finally:
         db.close_connection(connection, cursor)
 
-
-# @api.route('/users/getlogin/<int:user_id>', methods=['GET'])
-# def get_login_info(user_id):
-
-#     # data = request.get_json()
-#     # if not data or 'user_id' not in data:
-#     #     return jsonify({'error': 'You should provide the user ID'}), 400
-
-#     connection = db.get_connection
-#     if not connection :
-#         return jsonify({'error': 'Database connectio failed'}), 500
-
-    
-#     cursor = connection.cursor (dictionary=True) # so i get the results as a dict
-
-#     try:
-#        # get_login_query = "SELECT id, name, email, FROM users WHERE id = %s"
-
-#         # cursor.execute(get_login_query, data['user_id'])
-#        # cursor.execute(get_login_info, user_id)
-#         cursor.execute("SELECT id, name, email, role, FROM users WHERE id = %s", (user_id,))
-#         user = cursor.fetchdone()
-
-#         if not user:
-
-#             return jsonify({'error': 'You are not signed up yet Sign up then retry'}), 401
-        
-
-#         return jsonify({
-#             'message': 'User data are',
-#             'user': {
-#                 'id': user['id'],
-#                 'name': user['name'],
-#                 'email': user['email']
-#             }
-#         }), 200
-
-#     except mysql.connector.Error as e:
-#         return jsonify({'error': 'Login failed'}), 500
-#     except Exception as e:
-#         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
-#     finally:
-#         db.close_connection(connection, cursor)
-
 @api.route('/users/getuser/<int:user_id>', methods=['GET'])
 def get_users(user_id):
-    """Get a user data by ID"""
+    """Get user data, role, and phone numbers in two optimized queries."""
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({"error": "Database connection failed"}), 500
+    
+    cursor = connection.cursor(dictionary=True)
+    try:
+        # JOIN users and role tables:
+        # imma select user details and the actual 'role' string from the role table
+        user_query = """
+            SELECT u.id, u.name, u.email, r.role 
+            FROM users u
+            LEFT JOIN role r ON u.role_id = r.id
+            WHERE u.id = %s
+        """
+        cursor.execute(user_query, (user_id,))
+        user_data = cursor.fetchone()
+
+        if not user_data:
+            return jsonify({"error": "User not found. Please sign up first."}), 404
+
+        # Fetch phone numbers
+        phone_query = "SELECT phone_number FROM user_phone_numbers WHERE user_id = %s"
+        cursor.execute(phone_query, (user_id,))
+        phone_records = cursor.fetchall()
+        
+        # Organize the final response
+        # Extract the role name to keep the JSON clean insted of making 2 dicts like before
+        role_name = user_data.pop('role') 
+        user_data['phone_numbers'] = [row['phone_number'] for row in phone_records]
+
+        return jsonify({
+            'user': user_data, 
+            'role': role_name
+        })
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": "Database error", "details": str(e)}), 500
+    finally:
+        cursor.close()
+        db.close_connection(connection)
+
+@api.route('/users/edituser/<int:user_id>', methods=['PUT'])
+def edit_user_data(user_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    # Get connection - added parentheses ()
     connection = db.get_connection()
     if not connection:
         return jsonify({'error': 'Database connection failed'}), 500
 
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT id, name, email, role FROM users WHERE id = %s", (user_id,))
-        product = cursor.fetchone()
-        if product:
-            return jsonify(product)
-        return jsonify({'error': 'User not found, if you are not signed up try signing up first then retry'}), 404
+        connection.start_transaction()
+
+        # Build query dynamically to only update provided fields
+        query_parts = []
+        values = []
+
+        if 'name' in data:
+            query_parts.append('name = %s')
+            values.append(data['name'])
+        
+        if 'email' in data:
+            query_parts.append('email = %s')
+            values.append(data['email'])
+
+        if 'phone_numbers' in data:
+            # Delete existing phone numbers
+            cursor.execute('DELETE FROM user_phone_numbers WHERE user_id = %s', (user_id,))
+            
+            # Insert new phone numbers if provided
+            if data['phone_numbers'] and isinstance(data['phone_numbers'], list):
+                phone_query = "INSERT INTO user_phone_numbers (user_id, phone_number) VALUES (%s, %s)"
+                phone_data = [(user_id, phone.strip()) for phone in data['phone_numbers']]
+                cursor.executemany(phone_query, phone_data)
+        
+        # Check if we have any updates to make
+        has_updates = len(query_parts) > 0 or 'phone_numbers' in data
+        
+        if not has_updates:
+            return jsonify({'message': 'No valid fields provided for update'}), 400
+
+        # Only execute the users table update if there are fields to update
+        if query_parts:
+            # Construct the final query
+            update_user_data_query = f"UPDATE users SET {', '.join(query_parts)} WHERE id = %s"
+            values.append(user_id) # Add the user_id to the end of the values list
+
+            cursor.execute(update_user_data_query, tuple(values))
+
+        # Check if a user was actually updated
+        if cursor.rowcount == 0:
+            connection.rollback()
+            return jsonify({'error': 'User not found or no new data provided'}), 404
+
+        connection.commit()
+        return jsonify({'message': 'User data updated successfully'}), 200
+
+    except mysql.connector.Error as e:
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+@api.route('/users/changepassword/<int:user_id>', methods=['PUT'])
+def change_password(user_id):
+    connection = None
+    cursor = None
+    try:
+        connection = db.get_connection()
+        data = request.get_json()
+        cursor = connection.cursor(dictionary=True)
+
+        # fetch user data
+        cursor.execute('SELECT password FROM users WHERE id = %s', (user_id,))
+        user_record = cursor.fetchone()
+
+        if not user_record:
+            return {"error": "User not found"}, 404
+
+        #Verify old password
+        stored_hash = user_record['password'].encode('utf-8') 
+        old_entered = data['old_password'].encode('utf-8')
+
+        if bcrypt.checkpw(old_entered, stored_hash):
+            #Hash NEW password
+            new_password_raw = data['new_password'].encode('utf-8')
+            new_hashed_password = bcrypt.hashpw(new_password_raw, bcrypt.gensalt())
+
+            #now immaupdate DB
+            update_query = 'UPDATE users SET password = %s WHERE id = %s'
+            cursor.execute(update_query, (new_hashed_password, user_id))
+            
+            connection.commit() # Save changes
+            return {"message": "Password updated successfully"}, 200
+        else:
+            return {"error": "Incorrect old password"}, 401
+
+    except mysql.connector.Error as e:
+        if connection:
+            connection.rollback() # Undo changes on error
+        return {"error": str(e)}, 500
+    
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            db.close_connection(connection)
+
+
+@api.route('/users/permission/<int:user_id>', methods=['GET'])
+def get_permission(user_id):
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    cursor = connection.cursor(dictionary=True)
+    try: 
+        # i should really improve my jointing skills
+        query = """
+            SELECT p.permission 
+            FROM permission p
+            JOIN role_permission rp ON p.id = rp.permission_id
+            JOIN users u ON u.role_id = rp.role_id
+            WHERE u.id = %s
+        """
+        cursor.execute(query, (user_id,))
+        permissions = cursor.fetchall() 
+        
+        # permission_list = [p['permission'] for p in permissions]
+        # just a minor extra layer of security
+        #so my backend returns a empty list if the user has no premission
+        permission_list = [p['permission'] for p in permissions] if permissions else []
+        return jsonify({'permissions': permission_list}), 200
+
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+
+# -------------------------
+# Page visibility management
+# -------------------------
+# i need to get better at join commands when i have some free time
+def _ensure_page_permission_table(cursor):
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS page_permission (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            page_key VARCHAR(100) UNIQUE,
+            permission_id INT,
+            FOREIGN KEY (permission_id) REFERENCES permission(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB;
+    """)
+
+
+@api.route('/admin/page-permissions', methods=['GET', 'PUT'])
+def admin_page_permissions():
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = connection.cursor(dictionary=True)
+    try:
+        _ensure_page_permission_table(cursor)
+
+        if request.method == 'GET':
+            query = """
+                SELECT pp.page_key, pp.permission_id, p.permission
+                FROM page_permission pp
+                LEFT JOIN permission p ON pp.permission_id = p.id
+            """
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            return jsonify({'page_permissions': rows}), 200
+
+        data = request.get_json() or {}
+        admin_id = data.get('admin_id')
+        page_key = data.get('page_key')
+        perm_id = data.get('permission_id')
+
+        if not admin_id or page_key is None:
+            return jsonify({'error': 'admin_id and page_key required'}), 400
+
+        cursor.execute("SELECT r.role FROM users u JOIN role r ON u.role_id = r.id WHERE u.id = %s", (admin_id,))
+        admin_role = cursor.fetchone()
+        if not admin_role or admin_role.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+
+        cursor.execute("SELECT id FROM page_permission WHERE page_key = %s", (page_key,))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                "UPDATE page_permission SET permission_id = %s WHERE page_key = %s",
+                (perm_id, page_key),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO page_permission (page_key, permission_id) VALUES (%s, %s)",
+                (page_key, perm_id),
+            )
+        connection.commit()
+        return jsonify({'message': 'Page permission updated'}), 200
+
+    except mysql.connector.Error as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+        
+
+@api.route('/users/delete/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Delete a user"""
+    #only admins are allowed
+    # data = request.get_json()
+
+    # if not data or 'id' not in data:
+    #     return jsonify({'error': 'ID must be provided for the removal process'}), 400
+    
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    cursor = connection.cursor()
+    try:
+        #cursor.execute("DELETE FROM product WHERE id = %s", (product_id,))
+        #forget all this crap imma implement soft delete method where is deleted = 1 means deleted and is deleted = 0 means not deleted
+
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        connection.commit()
+       
+
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'user not found'}), 404
+
+        return jsonify({'message': 'user deleted successfully'}), 200
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close_connection(connection, cursor)
+
+@api.route('/roles/delete/<int:role_id>', methods=['DELETE'])
+def delete_role(role_id):
+    """Delete a usroleer"""
+    #only admins are allowed
+    # data = request.get_json()
+
+    # if not data or 'id' not in data:
+    #     return jsonify({'error': 'ID must be provided for the removal process'}), 400
+    
+    connection = db.get_connection()
+    if not connection:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    cursor = connection.cursor()
+    try:
+        #cursor.execute("DELETE FROM product WHERE id = %s", (product_id,))
+        #forget all this crap imma implement soft delete method where is deleted = 1 means deleted and is deleted = 0 means not deleted
+
+        cursor.execute("DELETE FROM role WHERE id = %s", (role_id,))
+        connection.commit()
+       
+
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'role not found'}), 404
+
+        return jsonify({'message': 'role deleted successfully'}), 200
     except mysql.connector.Error as e:
         return jsonify({'error': str(e)}), 500
     finally:

@@ -1,46 +1,57 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:pos_system/pages/account_page.dart';
-import 'package:pos_system/pages/user_profile_page.dart';
 import 'package:pos_system/providers/categories_provider.dart';
 import 'package:pos_system/providers/account_provider.dart';
-import 'package:pos_system/reusable%20widgets/CategoriesUi.dart';
+import 'package:pos_system/providers/orders_provider.dart';
 import 'package:provider/provider.dart';
-import '../pages/orders_page.dart';
-import '../models/product_model.dart';
+import 'package:pos_system/reusable%20widgets/ReusableButtons.dart';
 import '../reusable widgets/HoverArchiveWidget.dart';
-import '../services/orders_service.dart';
 import '../providers/cart_provider.dart';
 import '../providers/product_provider.dart';
-import 'package:image_picker/image_picker.dart';
 import '../reusable widgets/FiltersSheet.dart';
 import '../reusable widgets/Productdialogwidget.dart';
 import '../reusable widgets/UiWidgets.dart';
 import '../providers/theme_provider.dart';
 import '../reusable widgets/AppColors.dart';
-import '../pages/products_page.dart';
-import 'categories_page.dart';
 
 class PosDashboardPage extends StatefulWidget {
   const PosDashboardPage({super.key});
 
   @override
-  State<PosDashboardPage> createState() => _PosDashboardPageState();
+  State<PosDashboardPage> createState() => PosDashboardPageState();
 }
 
-class _PosDashboardPageState extends State<PosDashboardPage> {
+class PosDashboardPageState extends State<PosDashboardPage> {
   final searchQueryController = TextEditingController();
   Timer? _debounceTimer;
-
-  bool _sidebarExpanded = true;
+  // final FetchPaymentsService _fetchPaymentsService = FetchPaymentsService();
+  bool sidebarExpanded = true;
 
   @override
   void initState() {
     super.initState();
+    // fetch user permissions once after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ProductsProvider>().fetchProducts();
-      context.read<CategoriesProvider>().loadCategories();
+      final accountProvider = context.read<AccountProvider>();
+      if (accountProvider.currentUser != null) {
+        // load both the user permissions and the page requirements
+        accountProvider.fetchUserPermissions(accountProvider.currentUser!.id);
+        accountProvider.fetchPageRequirements();
+      }
+
+      final categoriesProvider = context.read<CategoriesProvider>();
+      final productsProvider = context.read<ProductsProvider>();
+      categoriesProvider.setCallbacks(
+        onCategorySelected: (categoryId) {
+          // Use the setCategory method – it resets other filters and fetches
+          productsProvider.setCategory(categoryId);
+        },
+        onResetFilters: () {
+          // Reset category filter and clear the search
+          productsProvider.setCategory(null);
+          searchQueryController.clear();
+        },
+      );
     });
   }
 
@@ -51,402 +62,12 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
     super.dispose();
   }
 
-  void _onSearchChanged(String value) {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 750), () {
-      if (mounted) {
-        _performSearch();
-      }
-    });
-  }
-
-  Future<void> _performSearch() async {
-    final query = searchQueryController.text.trim();
-    final provider = context.read<ProductsProvider>();
-
-    try {
-      provider.resetPagination();
-      await provider.fetchProducts(
-        searchQuery: query.isNotEmpty ? query : null,
-      );
-      FocusScope.of(context).unfocus();
-    } catch (e) {
-      debugPrint('Search error: $e');
-    }
-  }
-
-  void _removeFromCart(int productId) {
-    context.read<CartProvider>().removeFromCart(productId);
-  }
-
-  void _handleCheckout() async {
-    List<Map<String, dynamic>> itemsForApi = context
-        .read<CartProvider>()
-        .cart
-        .values
-        .map(
-          (item) => {"product_id": item.product.id, "quantity": item.quantity},
-        )
-        .toList();
-    debugPrint("items for api:$itemsForApi");
-
-    try {
-      final result = await OrderService().createOrder(itemsForApi);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Order #${result.id} placed! Total: \$${result.total}"),
-        ),
-      );
-
-      await context.read<ProductsProvider>().refresh();
-      context.read<CartProvider>().clearCart();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  void _onCategorySelected(int categoryId, String categoryName) {
-    final provider = context.read<ProductsProvider>();
-    provider.setCategory(categoryId);
-    debugPrint('Selected category: $categoryName (ID: $categoryId)');
-  }
-
-  void _onCategorySelectedAll() {
-    final provider = context.read<ProductsProvider>();
-    provider.resetFilters();
-    debugPrint('Selected category: All');
-  }
-
-  Widget _buildSidebar(
-    BuildContext context,
-    bool isDark,
-    ProductsProvider productsProv,
-  ) {
-    final sidebarWidth = _sidebarExpanded ? 280.0 : 100.0;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 50),
-      width: sidebarWidth,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkBgElevated : AppColors.lightBgElevated,
-        border: Border(
-          right: BorderSide(
-            color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(2, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 80,
-            padding: EdgeInsets.symmetric(
-              horizontal: _sidebarExpanded ? 16 : 8,
-            ),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (_sidebarExpanded)
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: isDark
-                                ? AppColors.darkButtonsPrimary.withOpacity(0.2)
-                                : AppColors.accentBlue.withOpacity(0.2),
-                          ),
-                          child: Icon(
-                            Icons.store,
-                            color: isDark
-                                ? AppColors.darkButtonsPrimary
-                                : AppColors.accentBlue,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'POS System',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? AppColors.darkTextPrimary
-                                  : AppColors.lightTextPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: isDark
-                          ? AppColors.darkButtonsPrimary.withOpacity(0.2)
-                          : AppColors.accentBlue.withOpacity(0.2),
-                    ),
-                    child: Icon(
-                      Icons.store,
-                      color: isDark
-                          ? AppColors.darkButtonsPrimary
-                          : AppColors.accentBlue,
-                      size: 24,
-                    ),
-                  ),
-                IconButton(
-                  icon: Icon(
-                    _sidebarExpanded ? Icons.chevron_left : Icons.chevron_right,
-                    color: isDark
-                        ? AppColors.darkTextMuted
-                        : AppColors.lightTextMuted,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _sidebarExpanded = !_sidebarExpanded;
-                    });
-                  },
-                  tooltip: _sidebarExpanded
-                      ? 'Collapse sidebar'
-                      : 'Expand sidebar',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 20,
-                    minHeight: 40,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-
-                  buildSidebarMenuItem(
-                    icon: Icons.light_mode,
-                    label: 'Theme',
-                    isDark: isDark,
-                    onTap: () {
-                      context.read<ThemeProvider>().toggleTheme();
-                    },
-                    isExpanded: _sidebarExpanded,
-                  ),
-
-                  buildSidebarMenuItem(
-                    icon: Icons.category,
-                    label: 'Categories',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const CategoriesPage(),
-                        ),
-                      );
-                    },
-                    isExpanded: _sidebarExpanded,
-                  ),
-                  buildSidebarMenuItem(
-                    icon: Icons.receipt_long,
-                    label: 'Orders',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const OrdersPage(),
-                        ),
-                      );
-                    },
-                    isExpanded: _sidebarExpanded,
-                  ),
-                  buildSidebarMenuItem(
-                    icon: Icons.shopping_cart_sharp,
-                    label: 'Products',
-                    isDark: isDark,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProductsPage(),
-                        ),
-                      );
-                    },
-                    isExpanded: _sidebarExpanded,
-                  ),
-
-                  if (_sidebarExpanded)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 20,
-                      ),
-                      child: Divider(
-                        color: isDark
-                            ? AppColors.borderSubtle
-                            : Colors.grey.shade300,
-                        thickness: 1,
-                      ),
-                    ),
-
-                  if (_sidebarExpanded)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'SYSTEM',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? AppColors.darkTextMuted
-                                  : AppColors.lightTextMuted,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          buildSidebarMenuItem(
-                            icon: Icons.settings,
-                            label: 'Settings',
-                            isDark: isDark,
-                            onTap: () {},
-                            isExpanded: _sidebarExpanded,
-                          ),
-                          buildSidebarMenuItem(
-                            icon: Icons.help_outline,
-                            label: 'Help',
-                            isDark: isDark,
-                            onTap: () {},
-                            isExpanded: _sidebarExpanded,
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
-          Container(
-            padding: EdgeInsets.all(_sidebarExpanded ? 16 : 12),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: isDark ? AppColors.borderSubtle : Colors.grey.shade300,
-                  width: 1,
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: isDark
-                        ? AppColors.darkButtonsPrimary
-                        : AppColors.accentBlue,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UserProfilePage(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (_sidebarExpanded) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Consumer<AccountProvider>(
-                      builder: (context, accountProvider, _) {
-                        final userName =
-                            accountProvider.currentUser?.name ?? 'Guest User';
-                        final userEmail =
-                            accountProvider.currentUser?.email ?? 'No email';
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userName,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? AppColors.darkTextPrimary
-                                    : AppColors.lightTextPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              userEmail,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark
-                                    ? AppColors.darkTextMuted
-                                    : AppColors.lightTextMuted,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    // accountProvider & permissions are accessed inline where needed
+    final productsProvider = context.read<ProductsProvider>();
+    final ordersProvider = context.read<OrdersProvider>();
+    // final categoriesProvider = context.read<CategoriesProvider>();
     return Scaffold(
       body: Container(
         color: context.watch<ThemeProvider>().isDark
@@ -457,7 +78,7 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
             final screenWidth = constraints.maxWidth;
             final screenHeight = constraints.maxHeight;
             final isDark = context.watch<ThemeProvider>().isDark;
-            final productsProv = context.watch<ProductsProvider>();
+            // final productsProv = context.watch<ProductsProvider>();
 
             final cartPanelWidth = screenWidth > 1200
                 ? 370
@@ -486,7 +107,20 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSidebar(context, isDark, productsProv),
+                buildSidebar(
+                  context: context,
+                  isDark: isDark,
+                  sidebarExpanded: sidebarExpanded,
+                  onToggleSidebar: () {
+                    setState(() {
+                      sidebarExpanded = !sidebarExpanded;
+                    });
+                  },
+                  showExpandButton: true,
+                  isInCategories: false,
+                  isInOrders: false,
+                  isInProducts: false,
+                ),
 
                 Expanded(
                   child: Column(
@@ -573,14 +207,31 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                                   onPressed: () {
                                                     searchQueryController
                                                         .clear();
-                                                    _performSearch();
+                                                    productsProvider
+                                                        .performSearch(
+                                                          searchQueryController
+                                                              .text,
+                                                        );
                                                   },
                                                 )
                                               : null,
                                         ),
                                         onSubmitted: (value) =>
-                                            _performSearch(),
-                                        onChanged: _onSearchChanged,
+                                            productsProvider.performSearch(
+                                              searchQueryController.text,
+                                            ),
+                                        onChanged: (value) {
+                                          if (_debounceTimer?.isActive ?? false)
+                                            _debounceTimer?.cancel();
+                                          _debounceTimer = Timer(
+                                            const Duration(milliseconds: 500),
+                                            () {
+                                              productsProvider.performSearch(
+                                                value,
+                                              );
+                                            },
+                                          );
+                                        },
                                       ),
                                     ),
                                   ],
@@ -707,14 +358,18 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 4,
                                             ),
-                                            child: Container(
+                                            child: SizedBox(
                                               height: 36,
                                               child: ElevatedButton(
                                                 onPressed: () {
                                                   if (isAll) {
-                                                    _onCategorySelectedAll();
+                                                    categoriesProvider
+                                                        .selectAllCategories();
+                                                    searchQueryController
+                                                        .clear();
                                                   } else {
-                                                    _onCategorySelected(
+                                                    categoriesProvider
+                                                        .selectCategory(
                                                       categoryId,
                                                       categoryName,
                                                     );
@@ -734,17 +389,9 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                                                   .grey
                                                                   .shade100),
                                                   foregroundColor: isSelected
-                                                      ? (isDark
-                                                            ? AppColors
-                                                                  .darkTextPrimary
-                                                            : Colors.white)
-                                                      : (isDark
-                                                            ? AppColors
-                                                                  .darkTextMuted
-                                                            : Colors
-                                                                  .grey
-                                                                  .shade800),
-                                                  elevation: 0,
+                                                      ? Colors.white
+                                                      : AppColors.darkTextMuted,
+
                                                   padding:
                                                       const EdgeInsets.symmetric(
                                                         horizontal: 16,
@@ -1376,10 +1023,12 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                                                       color:
                                                           Colors.grey.shade700,
                                                     ),
-                                                    onPressed: () =>
-                                                        _removeFromCart(
+                                                    onPressed: () => context
+                                                        .read<CartProvider>()
+                                                        .removeFromCart(
                                                           item.product.id,
                                                         ),
+
                                                     padding: EdgeInsets.zero,
                                                     constraints:
                                                         const BoxConstraints(
@@ -1490,48 +1139,12 @@ class _PosDashboardPageState extends State<PosDashboardPage> {
                               const SizedBox(height: 24),
                               SizedBox(
                                 height: 56,
-                                child: ElevatedButton(
-                                  onPressed: _handleCheckout,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isDark
-                                        ? AppColors.darkButtonsPrimary
-                                        : AppColors.accentBlue,
-                                    foregroundColor: isDark
-                                        ? AppColors.darkTextPrimary
-                                        : Colors.white,
-                                    minimumSize: const Size(
-                                      double.infinity,
-                                      56,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Pay Now',
-                                        style: TextStyle(
-                                          color: isDark
-                                              ? AppColors.darkTextPrimary
-                                              : Colors.white,
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                      SizedBox(width: 10),
-                                      Icon(
-                                        Icons.arrow_forward,
-                                        color: isDark
-                                            ? AppColors.darkTextPrimary
-                                            : Colors.white,
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
+                                width: 300,
+                                child: GenerelButton(
+                                  'Process Payment',
+                                  isDark,
+                                  () => ordersProvider.handleCheckout(context),
+                                  textSize: 20,
                                 ),
                               ),
                             ],

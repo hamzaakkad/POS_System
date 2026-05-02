@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as context;
+import 'package:pos_system/pages/pos_dashboard.dart';
 import '../models/product_model.dart';
 import '../services/product_service.dart';
 import '../services/categories_service.dart';
@@ -236,6 +240,9 @@ class ProductsProvider extends ChangeNotifier {
     _pageCurrentPage = 1;
     notifyListeners();
 
+    if (_allProductsPageProducts.isNotEmpty) return;
+    debugPrint(_allProductsPageProducts.toString());
+
     try {
       _productPageService.currentCursor = null;
 
@@ -250,6 +257,7 @@ class ProductsProvider extends ChangeNotifier {
         minPrice: _minPricePage,
         maxPrice: _maxPricePage,
       );
+      // debugPrint(_allProductsPageProducts.toString());
 
       _allProductsPageProducts.clear();
 
@@ -577,5 +585,42 @@ class ProductsProvider extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Timer? _debounceTimer;
+
+  Future<void> performSearch(String query) async {
+    // final provider = context.read<ProductsProvider>();
+
+    try {
+      resetPagination();
+      await fetchProducts(searchQuery: query.isNotEmpty ? query : null);
+      // FocusScope.of(context).unfocus();
+    } catch (e) {
+      debugPrint('Search error: $e');
+    }
+  }
+
+  void onSearchChanged(BuildContext context, String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 750), () {
+      uiPerformSearch(value);
+    });
+  }
+
+  Future<void> uiPerformSearch(String searchQueryController) async {
+    final query = searchQueryController;
+    try {
+      resetPagePagination();
+      await fetchProductsPageProducts(
+        searchQuery: query.isNotEmpty ? query : null,
+      );
+      // if (mounted) {
+      // FocusScope.of(context).unfocus();
+      // }
+      FocusManager.instance.primaryFocus?.unfocus();
+    } catch (e) {
+      debugPrint('Search error: $e');
+    }
   }
 }

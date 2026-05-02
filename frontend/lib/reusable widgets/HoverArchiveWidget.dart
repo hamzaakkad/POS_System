@@ -100,25 +100,7 @@ class _SubtleHoverDeleteState extends State<SubtleHoverDelete>
                         showDialog(
                           context: context,
                           builder: (BuildContext context) {
-                            // return AlertDialog(
-                            //   title: const Text('Archive Item?'),
-                            //   content: const Text(
-                            //     'Are you sure you want to archive this item?\nitem wont be shown in the list but it will stay in the orders list',
-                            //   ),
-                            //   actions: [
-                            //     TextButton(
-                            //       onPressed: () => Navigator.of(context).pop(),
-                            //       child: const Text('Cancel'),
-                            //     ),
-                            //     TextButton(
-                            //       onPressed: () {
-                            //         Navigator.of(context).pop();
-                            //         widget.onArchive();
-                            //       },
-                            //       child: const Text('Archive'),
-                            //     ),
-                            //   ],
-                            // );
+                           
                             return Dialog(
                               backgroundColor: isDark
                                   ? AppColors.darkBgElevated
