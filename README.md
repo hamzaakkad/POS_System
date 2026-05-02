@@ -108,7 +108,7 @@ mysql -u username -p pos_system < pos_system.sql
 
 ## Usage
 
-1. **Authentication**: Login with appropriate user credentials
+1. **Authentication**: Login with appropriate user credentials (the current admin account: hamzakkad@pos.com // pass: hamzakkad)
 2. **Dashboard**: View real-time sales and inventory data
 3. **Products**: Manage inventory through add/edit/archive functions
 4. **POS Operations**: Add items to cart, process payments, print receipts
@@ -123,6 +123,7 @@ mysql -u username -p pos_system < pos_system.sql
 - `POST /api/payments` - Process payments
 - `GET /api/categories` - List product categories
 - `GET /api/admin/users` - User management (admin only)
+-  For more explore the routes.py file in the backend folder
 
 ## Contributing
 
@@ -140,4 +141,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For support and questions, please open an issue on GitHub or contact the development team.You've used 50% of your weekly rate limit. Your weekly rate limit will reset on May 4 at 3:00 AM. [Learn More](https://aka.ms/github-copilot-rate-limit-error)
+For support and questions, please open an issue on GitHub or contact the development team.
+or email me at hamza.akkad.2007@gmail.com 
