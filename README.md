@@ -141,5 +141,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For support and questions, please open an issue on GitHub or contact the development team.
-or email me at hamza.akkad.2007@gmail.com 
+For support and questions, please open an issue on GitHub or contact the developer,
+or email me at hamza.akkad.2007@gmail.com .
