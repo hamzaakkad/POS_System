@@ -25,7 +25,7 @@ A comprehensive Point of Sale (POS) system designed for retail businesses, featu
 ### Backend
 - **Framework**: Python Flask with application factory pattern
 - **Database**: MySQL with connection pooling and error handling
-- **Authentication**: JWT-based authentication (coming soon) and bcrypt password hashing
+- **Authentication**: bcrypt password hashing
 - **CORS Support**: Configured for cross-origin requests from Flutter frontend
 - **File Uploads**: Secure image upload handling for product photos
 - **Environment Configuration**: dotenv for secure credential management
