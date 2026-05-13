@@ -22,7 +22,7 @@ A comprehensive Point of Sale (POS) system designed for retail businesses, featu
 
 ## Tech Stack
 
-### Backend<img width="1905" height="985" alt="Screenshot 2026-05-13 153920" src="https://github.com/user-attachments/assets/ec7147fb-b201-4931-8cb2-8e599944642b" />
+### Backend
 
 - **Framework**: Python Flask with application factory pattern
 - **Database**: MySQL with connection pooling and error handling
