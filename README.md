@@ -22,7 +22,8 @@ A comprehensive Point of Sale (POS) system designed for retail businesses, featu
 
 ## Tech Stack
 
-### Backend
+### Backend<img width="1905" height="985" alt="Screenshot 2026-05-13 153920" src="https://github.com/user-attachments/assets/ec7147fb-b201-4931-8cb2-8e599944642b" />
+
 - **Framework**: Python Flask with application factory pattern
 - **Database**: MySQL with connection pooling and error handling
 - **Authentication**: bcrypt password hashing
@@ -125,6 +126,22 @@ mysql -u username -p pos_system < pos_system.sql
 - `GET /api/admin/users` - User management (admin only)
 -  For more explore the routes.py file in the backend folder
 
+## Screenshots
+<img width="1905" height="985" alt="Screenshot 2026-05-13 153920" src="https://github.com/user-attachments/assets/9c998e2f-1f3a-4805-8f50-4fc8bf5a8022" />
+<img width="1920" height="987" alt="Screenshot 2026-05-13 154553" src="https://github.com/user-attachments/assets/17fd74da-baa4-4bbe-83df-d6ab7e348f1a" />
+<img width="1920" height="995" alt="Screenshot 2026-05-13 154532" src="https://github.com/user-attachments/assets/ce9dc95b-6762-4c02-8b9c-ef3407ee8402" />
+<img width="1920" height="992" alt="Screenshot 2026-05-13 154502" src="https://github.com/user-attachments/assets/1f596a77-1a31-49c4-ab78-b6e950412db1" />
+<img width="1920" height="990" alt="Screenshot 2026-05-13 154428" src="https://github.com/user-attachments/assets/1dda1e2b-07be-4f57-8ca5-bd3dcc8551e0" />
+<img width="1920" height="993" alt="Screenshot 2026-05-13 154359" src="https://github.com/user-attachments/assets/5eabaf15-9f11-43eb-aadd-899b026cb98d" />
+<img width="1920" height="995" alt="Screenshot 2026-05-13 154339" src="https://github.com/user-attachments/assets/9b222cc6-8342-4f4e-aa72-9ecca6ac2b61" />
+<img width="1920" height="992" alt="Screenshot 2026-05-13 154236" src="https://github.com/user-attachments/assets/83c5e3e4-f108-4e7b-bcd7-dcb41fcf755b" />
+<img width="1920" height="992" alt="Screenshot 2026-05-13 154207" src="https://github.com/user-attachments/assets/92d6adde-2bb6-4b80-b092-d959ede7a993" />
+<img width="1920" height="992" alt="Screenshot 2026-05-13 154152" src="https://github.com/user-attachments/assets/40f03d52-4d75-41cf-9734-86b062be2706" />
+<img width="1920" height="993" alt="Screenshot 2026-05-13 154117" src="https://github.com/user-attachments/assets/7d3d0760-0fd6-479a-8245-85d58e29906a" />
+<img width="1920" height="992" alt="Screenshot 2026-05-13 154057" src="https://github.com/user-attachments/assets/9493d517-7bfc-4bf0-af28-4889f48756ad" />
+<img width="1920" height="993" alt="Screenshot 2026-05-13 154039" src="https://github.com/user-attachments/assets/f4534788-a339-4202-8498-9988bafefa88" />
+
+
 ## Contributing
 
 Contributions are welcome! Please follow these steps:
@@ -141,4 +158,4 @@ This project is licensed under the MIT License.
 
 ## Support
 
-For support and questions, please open an issue on GitHub or contact the developer at hamza.akkad.2007@gmail.com .
+For support and questions, please open an issue on GitHub or contact the developer at hamza.akkad.2007@gmail.com
